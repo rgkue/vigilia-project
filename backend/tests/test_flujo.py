@@ -2,6 +2,8 @@ import os
 import tempfile
 
 os.environ["VIGILIA_DB"] = os.path.join(tempfile.mkdtemp(), "t.db")
+# Vacías (no borradas): así load_dotenv() no las rellena desde el .env real.
+# Las pruebas nunca deben escribir en Slack ni llamar al modelo.
 for k in ("VIGILIA_KEY", "SLACK_WEBHOOK_ADMISIONES", "SLACK_WEBHOOK_GESTOR", "GROQ_API_KEY"):
     os.environ[k] = ""
 
@@ -11,9 +13,13 @@ from fastapi.testclient import TestClient
 from app import main
 from app.main import app
 
-CASOS = [  # cédula, veredicto esperado
-    ("8-100-100", "VALIDA"), ("8-200-200", "NO_VALIDA"), ("8-300-300", "VALIDA_CON_ALERTAS"),
-    ("8-500-500", "VALIDA_CON_ALERTAS"), ("9-999-999", "NO_ENCONTRADO"),
+CASOS = [  # cédula, motivo de ingreso, veredicto esperado
+    ("8-100-100", "Fractura de muñeca por caída", "VALIDA"),
+    ("8-200-200", "Dolor torácico", "NO_VALIDA"),
+    ("8-300-300", "Dolor torácico", "VALIDA_CON_ALERTAS"),
+    ("8-400-400", "Dolor torácico opresivo", "VALIDA_CON_ALERTAS"),
+    ("8-500-500", "Fractura de muñeca por caída", "VALIDA_CON_ALERTAS"),
+    ("9-999-999", "Dolor torácico", "NO_ENCONTRADO"),
 ]
 
 
@@ -29,8 +35,8 @@ def limpiar_limite():
 
 def test_casos():
     with TestClient(app) as c:
-        for i, (ced, esperado) in enumerate(CASOS):
-            r = c.post("/webhook/ingreso", json=evento(i, ced))
+        for i, (ced, motivo, esperado) in enumerate(CASOS):
+            r = c.post("/webhook/ingreso", json=evento(i, ced, motivo))
             assert r.status_code == 200, r.text
             assert r.json()["veredicto"] == esperado, (ced, r.json())
             assert {n["estado"] for n in r.json()["notificaciones"]} == {"ENVIADA"}

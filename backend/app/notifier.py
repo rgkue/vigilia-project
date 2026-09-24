@@ -15,7 +15,7 @@ async def _enviar(destino: str, texto: str) -> Notificacion:
         print(f"[SIMULADO -> {destino}] {texto}")
         return Notificacion(destino=destino, canal="log", estado="ENVIADA")
     try:
-        async with httpx.AsyncClient(timeout=8) as c:
+        async with httpx.AsyncClient(timeout=5) as c:
             (await c.post(url, json={"text": texto})).raise_for_status()
         return Notificacion(destino=destino, canal="slack", estado="ENVIADA")
     except Exception as e:
