@@ -1,0 +1,14 @@
+.env
+.env*
+!.env.example
+.venv
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.db
+.pytest_cache/
+# Node / Vercel
+node_modules/
+.vercel/
+.vercel
