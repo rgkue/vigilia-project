@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dashboard de Control · Vigilia</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+:root{--bg:#EEF2F1;--surf:#fff;--ink:#10242F;--mute:#4B6068;--teal:#0E6B66;--warn:#8A5A00;--bad:#B3261E;--line:#C9D5D3;--tealbg:#DDEDEA;
+--h:"Bricolage Grotesque",Georgia,serif;--b:"Source Sans 3",system-ui,sans-serif;box-sizing:border-box;
+padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0F1C22;--surf:#16272F;--ink:#E3EEEC;--mute:#9DB2B3;--teal:#4FC3B8;--warn:#E0B04A;--bad:#FF8A80;--line:#27404A;--tealbg:#1B3A3F}}
+:root[data-theme="dark"]{--bg:#0F1C22;--surf:#16272F;--ink:#E3EEEC;--mute:#9DB2B3;--teal:#4FC3B8;--warn:#E0B04A;--bad:#FF8A80;--line:#27404A;--tealbg:#1B3A3F}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.55 var(--b)}
+main{max-width:880px;margin:0 auto;padding:28px 18px 64px}
+h1,h2,h3{font-family:var(--h);line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,6vw,3.1rem);font-weight:700}
+h2{font-size:1.6rem;margin:0 0 6px}
+h3{font-size:1.1rem}
+section{margin-top:52px}
+p{margin:.4em 0}
+.lead{color:var(--mute);max-width:66ch}
+.top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:22px}
+.pill{font-size:.85rem;padding:3px 10px;border-radius:99px;background:var(--tealbg);color:var(--teal);font-weight:600}
+.pill.local{background:transparent;border:1px solid var(--warn);color:var(--warn)}
+label{font-size:.9rem;color:var(--mute)}
+select,input,textarea,button{font:inherit;color:var(--ink)}
+select,input,textarea{background:var(--surf);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-width:0}
+textarea{width:100%;resize:vertical}
+button{background:var(--teal);color:var(--bg);border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--teal);border:1px solid var(--teal)}
+button.plain{background:transparent;color:var(--mute);border:0;padding:4px 8px;font-weight:400;text-decoration:underline}
+:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.clock{margin-top:30px;padding:22px 20px 10px;background:var(--surf);border:1px solid var(--line);border-radius:10px}
+.clock .when{color:var(--mute);margin:0 0 10px}
+.digits{display:flex;gap:clamp(10px,4vw,34px);flex-wrap:wrap}
+.digits div{display:flex;flex-direction:column}
+.digits b{font:700 clamp(2.4rem,9vw,4.4rem)/1 var(--h);font-variant-numeric:tabular-nums}
+.digits span{color:var(--mute);font-size:.9rem}
+.clock.urgent b{color:var(--bad)}
+.ecg{display:block;width:100%;height:34px;margin-top:8px}
+.ecg polyline{fill:none;stroke:var(--teal);stroke-width:2;stroke-linejoin:round}
+dl.facts{display:grid;grid-template-columns:max-content 1fr;gap:10px 22px;margin:26px 0 0}
+dl.facts dt{color:var(--mute)}
+dl.facts dd{margin:0}
+a{color:var(--teal)}
+@media (max-width:560px){dl.facts{grid-template-columns:1fr;gap:0}dl.facts dd{margin-bottom:10px}}
+.tech{background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-top:14px}
+.tech dl{margin:10px 0 0;display:grid;grid-template-columns:7.5rem 1fr;gap:6px 14px}
+.tech dt{font-weight:600}.tech dd{margin:0}
+@media (max-width:560px){.tech dl{grid-template-columns:1fr}.tech dd{margin-bottom:8px}}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin:10px 0 4px}
+.bar i{display:block;height:100%;background:var(--teal);width:0}
+.phase{margin-top:24px}
+.phase h3{border-bottom:1px solid var(--line);padding-bottom:6px}
+.row{display:grid;grid-template-columns:1fr auto;gap:6px 14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.row.done .t{text-decoration:line-through;color:var(--mute)}
+.meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tag{font-size:.85rem;color:var(--mute)}
+.tag.mine{color:var(--teal);font-weight:600}
+.add{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.add input{flex:1 1 220px}
+.branch{padding:14px 0;border-bottom:1px solid var(--line)}
+.branch code{font:600 .95rem ui-monospace,Menlo,monospace;background:var(--tealbg);color:var(--teal);padding:2px 8px;border-radius:5px}
+form.bf{display:grid;gap:8px;margin-top:16px}
+.empty{color:var(--mute);padding:12px 0}
+#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;display:none;max-width:90%}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <span class="pill" id="sync">Conectando…</span>
+    <span><label for="key">Clave del equipo</label> <input id="key" type="password" autocomplete="off" placeholder="Para editar" style="width:9rem"></span>
+    <span><label for="me">Estoy trabajando como</label>
+      <select id="me"><option value="">Elegir persona</option><option>Isaac Muñoz</option><option>Rubén Pino</option></select></span>
+  </div>
+
+  <header>
+    <h1>Dashboard de Control</h1>
+    <p style="font:700 1.5rem var(--h);margin-top:14px">Vigilia</p>
+    <p class="lead">Sistema de alerta temprana de ingresos a emergencias. Cuando un asegurado ingresa a la emergencia de un hospital, un webhook activa un agente de inteligencia artificial que valida la póliza y el historial de preexistencias, y notifica al mismo tiempo al departamento de admisiones del hospital y al gestor de casos de la aseguradora. La alerta es administrativa: el paciente se atiende siempre.</p>
+
+    <div class="clock" id="clock">
+      <p class="when">Fecha límite: viernes 25 de septiembre de 2026, 21:03 (hora de Panamá, UTC−5)</p>
+      <div class="digits" role="timer" aria-label="Tiempo restante para la entrega">
+        <div><b id="d">--</b><span>días</span></div><div><b id="h">--</b><span>horas</span></div>
+        <div><b id="m">--</b><span>minutos</span></div><div><b id="s">--</b><span>segundos</span></div>
+      </div>
+      <svg class="ecg" viewBox="0 0 600 34" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,20 180,20 200,20 212,4 226,32 240,14 252,20 380,20 400,20 412,4 426,32 440,14 452,20 600,20"/></svg>
+    </div>
+
+    <dl class="facts">
+      <dt>Reto elegido</dt><dd>Reto 4: Sistema de Alerta Temprana de Ingresos a Emergencias</dd>
+      <dt>Organizadores</dt><dd>hackIAthon, Viamatica y ADEN</dd>
+      <dt>Correo recibido</dt><dd>Martes 22 de septiembre de 2026, 21:03. Plazo: 3 días (72 horas)</dd>
+      <dt>Enviar a</dt><dd><a href="mailto:hackiathon@viamatica.com">hackiathon@viamatica.com</a></dd>
+      <dt>Entregables</dt><dd>Enlace público del agente funcional y enlace del repositorio</dd>
+      <dt>Miembros</dt><dd>Isaac Muñoz y Rubén Pino</dd>
+      <dt>Repositorio</dt><dd><a href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener">github.com/rgkue/vigilia-project</a></dd>
+    </dl>
+  </header>
+
+  <section>
+    <h2>Stack tecnológico</h2>
+    <p class="lead">Cada herramienta con su función dentro de Vigilia.</p>
+    <div id="stack"></div>
+  </section>
+
+  <section>
+    <h2>Objetivos y ruta de tareas</h2>
+    <p class="lead">Cualquiera de los dos puede asignarse una tarea sin asignar. Para editar hace falta la clave del equipo; los cambios llegan a la pantalla del otro en unos segundos.</p>
+    <div class="bar"><i id="bar"></i></div>
+    <p class="tag" id="prog"></p>
+    <div id="tasks"></div>
+    <div class="add">
+      <input id="ntitle" placeholder="Nueva tarea" aria-label="Título de la nueva tarea">
+      <select id="nphase" aria-label="Fase"><option>Fundamentos</option><option>Núcleo del sistema</option><option>Entrega</option></select>
+      <button id="addt">Agregar tarea</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Registro de ramas</h2>
+    <p class="lead">Anota cada rama que crees en el repositorio y la funcionalidad que implementa.</p>
+    <form class="bf" id="bf">
+      <input id="bname" required placeholder="Nombre de la rama, por ejemplo feature/webhook-ingreso" aria-label="Nombre de la rama">
+      <textarea id="breason" required rows="2" placeholder="Razón de la rama: funcionalidad que implementa" aria-label="Razón de la rama"></textarea>
+      <div class="add" style="margin:0"><select id="bby" aria-label="Creada por"><option value="">Creada por</option><option>Isaac Muñoz</option><option>Rubén Pino</option></select><button type="submit">Registrar rama</button></div>
+    </form>
+    <div id="branches"></div>
+  </section>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const PHASES=['Fundamentos','Núcleo del sistema','Entrega'];
+const STATES=['Pendiente','En curso','Hecha'];
+const STACK=[
+['Python (lenguaje de programación)','Lenguaje en el que se escribe todo el servidor.','Se instalan las dependencias con pip y se ejecuta el servidor con uvicorn.','Es el lenguaje que ambos dominamos y que tiene la mejor integración con la inteligencia artificial.','Escribir el webhook, las reglas y el agente en un solo lenguaje.'],
+['FastAPI (marco de trabajo web)','Biblioteca para construir servicios web que reciben solicitudes por el Protocolo de Transferencia de Hipertexto (HTTP).','Se declara una función por ruta, por ejemplo POST /webhook/ingreso, y valida los datos automáticamente.','Es rápido de escribir, genera documentación interactiva sola y admite código asíncrono.','Recibir el evento de ingreso y responder con el veredicto.'],
+['Pydantic (validación de esquemas)','Biblioteca que define la forma exacta de los datos con clases de Python.','Se crea una clase por mensaje (evento de ingreso, respuesta del agente) en schemas.py.','Un contrato de datos común permite que los dos trabajemos en paralelo sin errores de formato.','Rechazar eventos mal formados y fijar la respuesta del agente.'],
+['SQLite (base de datos relacional en un archivo)','Base de datos que se consulta con el Lenguaje de Consulta Estructurada (SQL) y vive en un único archivo.','Se crea con un script de datos de prueba que se ejecuta al iniciar el servidor.','No requiere instalar ni pagar un servidor de base de datos y es reproducible en la demostración.','Guardar asegurados, pólizas, preexistencias, ingresos y notificaciones.'],
+['Claude, mediante la Interfaz de Programación de Aplicaciones (API) de Anthropic','Modelo de inteligencia artificial que razona sobre texto y puede llamar herramientas definidas por nosotros.','Se envía el caso con las reglas ya calculadas y el modelo devuelve nivel de alerta y mensajes; las reglas exactas quedan en código.','Decidir si un motivo de ingreso se relaciona con una preexistencia exige interpretar lenguaje médico, cosa que el código fijo no hace bien.','Dar el criterio del agente y redactar mensajes distintos para admisiones y para el gestor de casos.'],
+['Slack, con webhooks entrantes','Herramienta de mensajería corporativa; un webhook entrante es una dirección que publica mensajes en un canal.','Dos canales (#admisiones y #gestor-casos), cada uno con su dirección, y se envían ambos mensajes a la vez con asyncio.gather (ejecución asíncrona en paralelo).','Es un canal creíble para uso empresarial y se configura en minutos, con notificaciones visibles en la demostración.','Cumplir el requisito de notificar en simultáneo a hospital y aseguradora.'],
+['Render o Railway (plataformas de despliegue)','Servicios que ejecutan el servidor en internet y le dan una dirección pública.','Se conecta el repositorio de GitHub, se definen las claves como variables de entorno y se despliega.','Piden el enlace público del agente funcional y estas plataformas lo dan sin tarjeta, o con muy bajo riesgo.','Publicar el agente para que el jurado lo pruebe.'],
+['Git y GitHub (control de versiones y alojamiento del repositorio)','Git registra cambios del código; GitHub los aloja y permite trabajar en ramas.','Cada persona trabaja en su rama, la registra en este panel y la une a main con una solicitud de integración (pull request).','Evita pisarnos el trabajo y deja un historial que el jurado puede revisar.','Entregar el enlace del repositorio y documentar el proceso.'],
+['React y Firebase Hosting (opcional, si sobra tiempo)','React es una biblioteca para construir interfaces web; Firebase Hosting sirve páginas estáticas gratis.','Una página con el botón «Simular ingreso» que llama al webhook y muestra las alertas.','Permite que el jurado pruebe el flujo sin herramientas técnicas, pero no es requisito para que funcione.','Mejorar la demostración una vez que el servidor ya funcione.']];
+
+let tasks=[],branches=[],me='',key='';
+const ls={get(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+me=ls.get('vg_me')||'';key=ls.get('vg_key')||'';
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',3500)}
+async function api(path,method,body){
+  const r=await fetch(path,{method:method||'GET',headers:{'content-type':'application/json','x-team-key':key},body:body?JSON.stringify(body):undefined});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||('http '+r.status));
+  return j;
+}
+const fail=(e,v)=>toast(e.message==='clave'?'Clave del equipo vacía o incorrecta.':'No se pudo '+v+' ('+e.message+')');
+async function put(col,item){try{await api('/api/'+col,'PUT',item);await load()}catch(e){fail(e,'guardar')}}
+async function del(col,id){try{await api('/api/'+col+'?id='+encodeURIComponent(id),'DELETE');await load()}catch(e){fail(e,'eliminar')}}
+
+function render(){
+  $('#stack').innerHTML=STACK.map(s=>`<article class="tech"><h3>${esc(s[0])}</h3><dl><dt>Qué es</dt><dd>${esc(s[1])}</dd><dt>Cómo</dt><dd>${esc(s[2])}</dd><dt>Por qué</dt><dd>${esc(s[3])}</dd><dt>Para qué</dt><dd>${esc(s[4])}</dd></dl></article>`).join('');
+  const done=tasks.filter(t=>t.status==='Hecha').length,n=tasks.length;
+  $('#bar').style.width=(n?done/n*100:0)+'%';
+  $('#prog').textContent=n?`${done} de ${n} tareas hechas · ${tasks.filter(t=>!t.assignee&&t.status!=='Hecha').length} sin asignar`:'';
+  const sorted=[...tasks].sort((a,b)=>(a.order||0)-(b.order||0));
+  const phases=[...new Set([...PHASES,...sorted.map(t=>t.phase)])].filter(p=>sorted.some(t=>t.phase===p));
+  $('#tasks').innerHTML=phases.map(p=>`<div class="phase"><h3>${esc(p)}</h3>`+sorted.filter(t=>t.phase===p).map(t=>{
+    const mine=t.assignee&&t.assignee===me;
+    return `<div class="row ${t.status==='Hecha'?'done':''}"><div><div class="t">${esc(t.title)}</div>
+      <div class="meta"><span class="tag ${mine?'mine':''}">${t.assignee?'Asignada a '+esc(t.assignee):'Sin asignar'}</span>
+      ${!t.assignee?`<button class="ghost" data-a="take" data-id="${esc(t.id)}">Asignarme</button>`:''}
+      ${mine?`<button class="plain" data-a="drop" data-id="${esc(t.id)}">Soltar</button>`:''}</div></div>
+      <div class="meta"><select data-a="st" data-id="${esc(t.id)}" aria-label="Estado">${STATES.map(s=>`<option${s===t.status?' selected':''}>${s}</option>`).join('')}</select>
+      <button class="plain" data-a="rm" data-id="${esc(t.id)}" aria-label="Eliminar tarea">Eliminar</button></div></div>`}).join('')+'</div>').join('')||'<p class="empty">No hay tareas todavía.</p>';
+  const bs=[...branches].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  $('#branches').innerHTML=bs.map(b=>`<div class="branch"><code>${esc(b.name)}</code>
+    <p>${esc(b.reason)}</p><p class="tag">${esc(b.by||'Sin autor')} · ${new Date(b.createdAt).toLocaleString('es-PA',{dateStyle:'medium',timeStyle:'short'})}
+    <button class="plain" data-a="rmb" data-id="${esc(b.id)}">Eliminar</button></p></div>`).join('')||'<p class="empty">Aún no hay ramas registradas. Registra la primera arriba.</p>';
+}
+
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-a]');if(!el||el.tagName==='SELECT')return;
+  const t=tasks.find(x=>x.id===el.dataset.id),a=el.dataset.a;
+  if(a==='take'){if(!me)return toast('Elige primero quién eres, arriba a la derecha.');put('tasks',{...t,assignee:me,status:t.status==='Pendiente'?'En curso':t.status})}
+  if(a==='drop')put('tasks',{...t,assignee:''});
+  if(a==='rm')del('tasks',el.dataset.id);
+  if(a==='rmb')del('branches',el.dataset.id);
+});
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(el.dataset.a==='st'){const t=tasks.find(x=>x.id===el.dataset.id);put('tasks',{...t,status:el.value})}
+});
+$('#me').value=me;
+$('#me').onchange=e=>{me=e.target.value;ls.set('vg_me',me);$('#bby').value=me;render()};
+$('#bby').value=me;
+$('#addt').onclick=()=>{const v=$('#ntitle').value.trim();if(!v)return;const o=Math.max(0,...tasks.map(t=>t.order||0))+1;
+  put('tasks',{id:'t'+Date.now(),order:o,phase:$('#nphase').value,title:v,status:'Pendiente',assignee:''});$('#ntitle').value=''};
+$('#bf').onsubmit=e=>{e.preventDefault();
+  put('branches',{id:'b'+Date.now(),name:$('#bname').value.trim(),reason:$('#breason').value.trim(),by:$('#bby').value,createdAt:new Date().toISOString()});
+  $('#bname').value='';$('#breason').value=''};
+
+const END=new Date('2026-09-25T21:03:00-05:00').getTime();
+function tick(){
+  let ms=END-Date.now();const late=ms<=0;if(late)ms=0;
+  const s=Math.floor(ms/1000),p=n=>String(n).padStart(2,'0');
+  $('#d').textContent=Math.floor(s/86400);$('#h').textContent=p(Math.floor(s%86400/3600));
+  $('#m').textContent=p(Math.floor(s%3600/60));$('#s').textContent=p(s%60);
+  $('#clock').classList.toggle('urgent',late||ms<86400000);
+  if(late)document.querySelector('.when').textContent='El plazo de entrega ya venció.';
+}
+tick();setInterval(tick,1000);
+
+$('#key').value=key;
+$('#key').onchange=e=>{key=e.target.value.trim();ls.set('vg_key',key);toast('Clave guardada en este navegador.')};
+function setSync(ok){const s=$('#sync');s.textContent=ok?'Conectado a la base de datos · se actualiza cada 5 s':'Sin conexión con la base de datos';s.className=ok?'pill':'pill local'}
+let last='';
+async function load(){
+  try{const [t,b]=await Promise.all([api('/api/tasks'),api('/api/branches')]);setSync(true);
+    const sig=JSON.stringify([t,b]);if(sig!==last){last=sig;tasks=t;branches=b;render()}}
+  catch(e){setSync(false)}
+}
+render();load();
+setInterval(()=>{if(!document.hidden)load()},5000);
+</script>
+</body>
+</html>
