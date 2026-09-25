@@ -20,6 +20,15 @@ No copies ese valor en el chat, en variables `VITE_*`, ni en código. Reinicia `
 
 En Vercel, configura una variable privada `AI_GATEWAY_API_KEY` o habilita la autenticación OIDC para AI Gateway en el proyecto. El estado de Jev reconoce cualquiera de las dos credenciales; no se debe cargar una clave al frontend estático.
 
+Para probar ZDR en el simulador local solo con los fixtures permitidos, inicia Vite con `JEV_SYNTHETIC_REQUIRE_ZDR=true`. En PowerShell:
+
+```powershell
+$env:JEV_SYNTHETIC_REQUIRE_ZDR = "true"
+pnpm dev
+```
+
+En otra terminal ejecuta `pnpm run test:jev-synthetic`. El benchmark exige entonces que cada respuesta confirme `finalProvider=typesafe-ai`, ZDR en la planificación y revisión humana. Si la cuenta no tiene acceso ZDR, la evaluación debe fallar de forma cerrada. Al terminar, cierra Vite y elimina la variable de esa terminal o abre una terminal nueva. Esta prueba no habilita Jev para ingresos reales.
+
 ## Preguntas y respuesta segura
 
 Para cada antecedente, Jev elige entre:
@@ -34,11 +43,13 @@ Se requiere una probabilidad de la opción elegida de al menos 0.75 para present
 
 Vercel anunció que Jev admite ZDR y No Training por solicitud. Su documentación actual de evaluación permite configurar `zeroDataRetention` y una lista de proveedores permitidos; el changelog de privacidad indica que ZDR también incluye exclusión de entrenamiento y que ZDR por solicitud requiere un equipo Pro o Enterprise. La tabla pública del proveedor TypeSafe muestra vacías las columnas ZDR y No Training, en discrepancia con el anuncio específico de Jev. La llamada con ZDR realizada con esta cuenta fue rechazada con `permission_denied` (HTTP 403); el motivo concreto no se pudo determinar, por lo que no demuestra incompatibilidad del modelo. Una llamada sintética con `disallowPromptTraining` sí completó e informó metadatos de planificación No Training, pero no demuestra ZDR.
 
+El 25 de septiembre se repitió una prueba sintética de ZDR desde el AI SDK. Con y sin `only: ["typesafe-ai"]`, el wrapper respondió HTTP 502; el log seguro registró un `GatewayResponseError` con causa `AI_APICallError` y estado upstream 500, sin metadatos de ruta. En cambio, el control No Training volvió a pasar cuatro llamadas: dos por fixture, con resultados estables y metadatos del proveedor `typesafe-ai`. Esto deja verificado el modo de demo No Training, pero no ZDR.
+
 El experimento del simulador solo acepta fixtures ficticios y debe seguir aislado del flujo de ingresos reales. El agente Python acepta Jev únicamente con ZDR obligatorio, restringe AI Gateway a `typesafe-ai` y falla cerrada si faltan metadatos que confirmen el proveedor final y una planificación con ZDR solicitado. Esa ruta aún no se ha validado porque la petición de esta cuenta recibió 403. No habilitarla con ingresos reales hasta resolver el acceso, verificar una evaluación ficticia del backend cuya respuesta confirme el enrutamiento ZDR y completar la revisión de privacidad y calidad del equipo. La elegibilidad ZDR de Jev documentada por Vercel no reemplaza esas verificaciones. Mientras tanto, Kev sigue siendo el proveedor predeterminado.
 
 Con Vite en ejecución, `pnpm run test:jev-contract` revisa el estado, el rechazo de orígenes externos, métodos no permitidos, JSON inválido y casos fuera de la lista. Este chequeo no llama a Jev ni consume tokens.
 
-`pnpm run test:jev-synthetic` compara los dos escenarios permitidos con expectativas orientativas y repite cada uno dos veces por defecto. `JEV_BENCHMARK_REPEATS` admite de una a tres repeticiones. El benchmark consume llamadas, registra solo las etiquetas sintéticas, valida el umbral, la escala de probabilidad y la revisión humana y comprueba la repetibilidad; no evalúa exactitud clínica. Si falta la credencial, termina como `SKIP` sin llamar al modelo. En la última ejecución se hicieron tres repeticiones por escenario (seis llamadas): todas pasaron y fueron estables. `vig-demo-01` quedó `PENDIENTE`; `vig-demo-04` devolvió `POSIBLE` para ambos antecedentes.
+`pnpm run test:jev-synthetic` compara los dos escenarios permitidos con expectativas orientativas y repite cada uno dos veces por defecto. `JEV_BENCHMARK_REPEATS` admite de una a tres repeticiones. El benchmark consume llamadas, registra solo las etiquetas sintéticas, valida el umbral, la escala de probabilidad y la revisión humana y comprueba la repetibilidad; no evalúa exactitud clínica. Si falta la credencial, termina como `SKIP` sin llamar al modelo. La última ejecución de seis llamadas, con No Training auditado y sin ZDR, pasó estable: `vig-demo-01` quedó `PENDIENTE` y `vig-demo-04` devolvió `POSIBLE` para ambos antecedentes. La modalidad ZDR se verifica por separado con `JEV_SYNTHETIC_REQUIRE_ZDR=true`.
 
 La API de evaluación del AI SDK es experimental. Una salida tipada y su probabilidad no validan exactitud. El simulador está limitado a datos ficticios y no permite entradas clínicas reales. Ningún resultado de Jev decide la validez de una póliza, cobertura o atención. La opción `disallowPromptTraining` no debe confundirse con ZDR.
 

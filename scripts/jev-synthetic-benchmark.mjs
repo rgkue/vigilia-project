@@ -30,7 +30,9 @@ if (!statusResponse?.ok) {
   process.exitCode = 2;
 } else {
   const status = await statusResponse.json().catch(() => null);
-  if (status?.model !== "typesafe-ai/jev" || typeof status.configured !== "boolean") {
+  if (status?.model !== "typesafe-ai/jev"
+    || typeof status.configured !== "boolean"
+    || typeof status.zdrRequired !== "boolean") {
     console.error("BLOCKED: el endpoint devolvió un estado inesperado.");
     process.exitCode = 2;
   } else if (!status.configured) {
@@ -65,9 +67,10 @@ if (!statusResponse?.ok) {
         const validPrivacyAudit = routingAudit !== null
           && typeof routingAudit === "object"
           && typeof routingAudit.finalProvider === "string"
-          && routingAudit.finalProvider.length > 0
+          && routingAudit.finalProvider === "typesafe-ai"
           && typeof routingAudit.planningReasoning === "string"
-          && routingAudit.noTrainingRequested === true;
+          && routingAudit.noTrainingRequested === true
+          && (!status.zdrRequired || routingAudit.zeroDataRetentionRequested === true);
         const validSuggestions = suggestions.length > 0 && suggestions.every((item) => {
           if (
             typeof item?.condition !== "string"
@@ -101,7 +104,7 @@ if (!statusResponse?.ok) {
           meetsExpectation,
           `${scenario.caseId} muestra ${repeat}/${repeats}`,
           validShape
-            ? `relaciones ${relations.join(", ")}; proveedor ${routingAudit.finalProvider}; filtro No Training auditado; umbral 75% y revisión humana validados; criterio: ${scenario.expectation}`
+            ? `relaciones ${relations.join(", ")}; proveedor ${routingAudit.finalProvider}; filtro ${status.zdrRequired ? "ZDR y No Training" : "No Training"} auditado; umbral 75% y revisión humana validados; criterio: ${scenario.expectation}`
             : "formato, probabilidad, umbral, revisión humana o metadatos de privacidad no válidos",
         );
       }

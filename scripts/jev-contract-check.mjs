@@ -18,7 +18,8 @@ record(
   "GET reports Jev model and configuration state",
   statusResponse.status === 200
     && statusPayload?.model === "typesafe-ai/jev"
-    && typeof statusPayload?.configured === "boolean",
+    && typeof statusPayload?.configured === "boolean"
+    && typeof statusPayload?.zdrRequired === "boolean",
 );
 
 const foreignOriginResponse = await fetch(endpoint, {

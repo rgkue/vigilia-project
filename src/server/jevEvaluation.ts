@@ -30,6 +30,10 @@ function hasGatewayCredentials(): boolean {
   return Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN);
 }
 
+function requiresZdrForSynthetic(): boolean {
+  return process.env.JEV_SYNTHETIC_REQUIRE_ZDR === "true";
+}
+
 function isSameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return false;
@@ -63,6 +67,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function readUpstreamStatus(error: unknown): number | null {
+  if (!isRecord(error)) return null;
+  const statusCode = error.statusCode;
+  return typeof statusCode === "number" && Number.isInteger(statusCode) && statusCode >= 100 && statusCode <= 599
+    ? statusCode
+    : null;
+}
+
 function readRoutingAudit(providerMetadata: unknown): JevRoutingAudit | null {
   if (!isRecord(providerMetadata) || !isRecord(providerMetadata.gateway)) return null;
   const routing = providerMetadata.gateway.routing;
@@ -73,12 +85,13 @@ function readRoutingAudit(providerMetadata: unknown): JevRoutingAudit | null {
     ? routing.planningReasoning.slice(0, 320)
     : null;
   const reasoning = planningReasoning?.toLowerCase() ?? "";
+  const zeroDataRetentionRequested = /zdr requested|zero data retention requested/i.test(reasoning);
 
   return {
     finalProvider,
     planningReasoning,
-    noTrainingRequested: Boolean(finalProvider && /no[ -]training|disallow prompt training/i.test(reasoning)),
-    zeroDataRetentionRequested: /\bzdr\b|zero data retention/i.test(reasoning),
+    noTrainingRequested: Boolean(finalProvider && (zeroDataRetentionRequested || /no[ -]training|disallow prompt training/i.test(reasoning))),
+    zeroDataRetentionRequested,
   };
 }
 
@@ -105,7 +118,9 @@ async function classifyCase(caseId: string): Promise<JevEvaluation> {
     questions,
     providerOptions: {
       gateway: {
-        disallowPromptTraining: true,
+        ...(requiresZdrForSynthetic()
+          ? { zeroDataRetention: true, only: ["typesafe-ai"] }
+          : { disallowPromptTraining: true }),
       },
     },
     maxRetries: 0,
@@ -154,6 +169,7 @@ export async function handleJevRequest(request: Request): Promise<Response> {
     return json({
       configured: hasGatewayCredentials(),
       model: MODEL,
+      zdrRequired: requiresZdrForSynthetic(),
     });
   }
 
@@ -192,7 +208,12 @@ export async function handleJevRequest(request: Request): Promise<Response> {
 
   try {
     return json(await classifyCase(caseId));
-  } catch {
+  } catch (error) {
+    console.warn("Jev synthetic evaluation failed:", {
+      status: readUpstreamStatus(error) ?? "unknown",
+      errorType: error instanceof Error ? error.name : typeof error,
+      causeType: error instanceof Error && error.cause instanceof Error ? error.cause.name : "none",
+    });
     return json({ error: "Jev no pudo completar la evaluación. El caso queda pendiente de revisión humana." }, 502);
   }
 }

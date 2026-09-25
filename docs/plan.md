@@ -34,6 +34,8 @@ El botón de la demo y los datos sintéticos permiten recorrer el flujo visual s
 
 ## Siguientes pasos
 
+Antes de habilitar Jev en el backend con ingresos reales, resolver por qué AI Gateway no acepta la solicitud ZDR de esta cuenta. La prueba sintética AI SDK del 25 de septiembre falló con HTTP 502 / `GatewayResponseError` tanto con la lista de proveedor como sin ella; las llamadas de control bajo No Training sí completaron. El benchmark local permite repetir la prueba ZDR con fixtures sin enviar datos de usuarios.
+
 1. **Confirmar el tratamiento de datos de Jev antes de activarlo en el backend.** Vercel documenta ZDR y No Training para Jev, y el endpoint acepta ambas restricciones de proveedor; el catálogo tiene campos sin marcar y la petición actual recibió 403. Confirmar el acceso ZDR de la cuenta y que una evaluación ficticia del backend devuelve `finalProvider=typesafe-ai` y `planningReasoning` con ZDR solicitado. Obtener las aprobaciones de privacidad y contractuales del equipo para el uso previsto antes de procesar datos reales.
 2. **Probar un proveedor real solo con autorización y datos sintéticos.** Kev o Groq se activa desde la configuración privada del backend; el equipo elige uno expresamente, configura su clave localmente y revisa las respuestas de los seis fixtures.
 3. **Preparar una fase posterior de entrega.** Acordar el despliegue del frontend de producto y validar el flujo con la API publicada. No desplegar desde `vigilia-panel/` ni activar Firebase hasta completar esa revisión.
