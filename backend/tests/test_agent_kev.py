@@ -245,6 +245,24 @@ class JevAdapterTests(unittest.TestCase):
             self.assertEqual(len(results), 2)
             self.assertTrue(all(item.justificacion.startswith("Revisión humana pendiente:") for item in results))
 
+    def test_http_403_falla_cerrado_y_registra_solo_estado_sin_cuerpo(self):
+        response = httpx.Response(
+            403,
+            request=httpx.Request("POST", agent.JEV_URL),
+            text="sensitive-provider-error",
+        )
+        error = httpx.HTTPStatusError("403 Forbidden", request=response.request, response=response)
+        with self.assertLogs(agent.logger, level="WARNING") as captured, patch.dict(
+            os.environ, self.environment(), clear=False
+        ), patch.object(agent.httpx, "AsyncClient", cliente_falso(error=error)):
+            results = self.run_agent()
+
+        log_output = "\n".join(captured.output)
+        self.assertIn("HTTPStatusError", log_output)
+        self.assertIn("status=403", log_output)
+        self.assertNotIn("sensitive-provider-error", log_output)
+        self.assertTrue(all(item.justificacion.startswith("Revisión humana pendiente:") for item in results))
+
 
 class GroqAdapterTests(unittest.TestCase):
     def run_agent(self, preexistencias=PREEXISTENCIAS):

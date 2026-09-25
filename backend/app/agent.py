@@ -342,7 +342,12 @@ async def _consultar_jev(
             payload = response.json()
     except (httpx.HTTPError, ValueError) as exc:
         # No registrar claves, texto de salud, respuesta ni cuerpo de error del proveedor.
-        logger.warning("Jev no respondió con una clasificación válida (%s).", type(exc).__name__)
+        status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else "n/a"
+        logger.warning(
+            "Jev no respondió con una clasificación válida (error=%s, status=%s).",
+            type(exc).__name__,
+            status,
+        )
         return None
     if not _jev_zdr_route_confirmed(payload):
         logger.warning("Jev no confirmó el enrutamiento ZDR requerido.")
