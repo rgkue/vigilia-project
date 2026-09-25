@@ -127,7 +127,7 @@ async function classifyCase(caseId: string): Promise<JevEvaluation> {
           : { disallowPromptTraining: true, only: ["typesafe-ai"] }),
       },
     },
-    maxRetries: 0,
+    maxRetries: 1, // A single transient retry stays within the same pinned provider and privacy policy.
     abortSignal: AbortSignal.timeout(12_000),
   });
 
