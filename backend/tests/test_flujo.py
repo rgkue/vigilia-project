@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 FLOW_DIRECTORY = tempfile.TemporaryDirectory(prefix="vigilia-flow-tests-")
+os.environ.__setitem__("VIGILIA_MODE", "demo")
 os.environ.__setitem__("VIGILIA_DB", str(Path(FLOW_DIRECTORY.name) / "vigilia-flow.db"))
 os.environ.__setitem__("VIGILIA_KEY", "")
 os.environ.__setitem__("VIGILIA_AI_PROVIDER", "kev")

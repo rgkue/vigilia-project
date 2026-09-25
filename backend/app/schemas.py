@@ -4,8 +4,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-Veredicto = Literal["VALIDA", "VALIDA_CON_ALERTAS", "NO_VALIDA", "NO_ENCONTRADO"]
+Veredicto = Literal["VALIDA", "VALIDA_CON_ALERTAS", "NO_VALIDA", "NO_ENCONTRADO", "PENDIENTE"]
 Alerta = Literal["BAJO", "MEDIO", "ALTO"]
+EstadoFuente = Literal["not_configured", "connected", "unavailable", "invalid_response", "not_found"]
 
 
 class EventoIngreso(BaseModel):
@@ -31,6 +32,18 @@ class PreexistenciaRelacionada(BaseModel):
     condicion: str
     relacion: Literal["DIRECTA", "POSIBLE", "NINGUNA"]
     justificacion: str
+    relacion_sugerida: Literal["DIRECTA", "POSIBLE", "NINGUNA"] | None = None
+    revisada: bool = False
+    motivo_revision: str | None = None
+    revisor_id: str | None = None
+    revisada_en: datetime | None = None
+
+
+class EstadoIntegracion(BaseModel):
+    tipo: str
+    estado: EstadoFuente
+    consultada: bool = False
+    revisada_en: datetime | None = None
 
 
 class Mensajes(BaseModel):
@@ -41,7 +54,7 @@ class Mensajes(BaseModel):
 class Notificacion(BaseModel):
     destino: Literal["admisiones", "gestor_casos"]
     canal: str
-    estado: Literal["ENVIADA", "ERROR"]
+    estado: Literal["ENVIADA", "ERROR", "NO_CONFIGURADA"]
 
 
 class RespuestaIngreso(BaseModel):
@@ -55,3 +68,4 @@ class RespuestaIngreso(BaseModel):
     mensaje_admisiones: str
     mensaje_gestor: str
     notificaciones: list[Notificacion]
+    fuentes: list[EstadoIntegracion] = Field(default_factory=list)

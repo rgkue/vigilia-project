@@ -1,48 +1,73 @@
-# Contrato de Vigilia
+# Contratos de Vigilia
 
-Fuente de verdad: app/schemas.py. La integración conserva las rutas y los campos públicos del backend de BillieJSON.
+La fuente de verdad de los cuerpos canónicos es [`backend/app/schemas.py`](../app/schemas.py). Las instalaciones usan el mismo contrato central. Cada conector puede mapear rutas JSON del proveedor a esos campos; el panel no ejecuta código ni permite modificar las reglas.
 
-## Entrada: POST /webhook/ingreso
+## Ingreso de un sistema
 
-    {
-      "evento_id": "ING-0001",
-      "cedula": "8-400-400",
-      "hospital": "Hospital Punta Pacífica",
-      "motivo_ingreso": "Dolor torácico opresivo",
-      "triage": 2,
-      "fecha_ingreso": "2026-09-24T14:32:00-05:00"
-    }
+En demo, `POST /webhook/ingreso` recibe directamente el contrato. En producción requiere una credencial individual de una integración `ingress`:
 
-## Salida
+```http
+POST /webhook/ingreso
+Authorization: Bearer <credencial>
+X-Vigilia-Integration: <id de integración>
+Content-Type: application/json
+```
 
-veredicto: VALIDA | VALIDA_CON_ALERTAS | NO_VALIDA | NO_ENCONTRADO
-nivel_alerta: BAJO | MEDIO | ALTO
+```json
+{
+  "evento_id": "ING-0001",
+  "cedula": "8-400-400",
+  "hospital": "Hospital de ejemplo",
+  "motivo_ingreso": "Dolor torácico opresivo",
+  "triage": 2,
+  "fecha_ingreso": "2026-09-24T14:32:00-05:00"
+}
+```
 
-La respuesta también incluye poliza, preexistencias (condicion, relacion y justificacion), mensaje_admisiones, mensaje_gestor y notificaciones (destino, canal y estado).
+`evento_id`, `cedula`, `hospital`, `motivo_ingreso` y `fecha_ingreso` son obligatorios; `triage` es opcional y acepta 1 a 5. En producción el mapa de ingreso transforma las rutas de la carga del hospital a esos campos.
 
-La API conserva relacion como DIRECTA | POSIBLE | NINGUNA. Cuando una clasificación no se confirma, devuelve NINGUNA junto con el prefijo Revisión humana pendiente:; la UI convierte esa combinación en PENDIENTE. No se añade un valor nuevo al enum público.
+## Resultado
 
-## Responsabilidades
+La respuesta incluye `evento_id`, `veredicto`, `nivel_alerta`, `poliza`, `preexistencias`, dos mensajes administrativos, dos estados de notificación y `fuentes`.
 
-- rules.py verifica vigencia, pago y carencia, y determina el veredicto administrativo.
-- agent.py usa Kev por defecto, Groq con `VIGILIA_AI_PROVIDER=groq`, o Jev con `VIGILIA_AI_PROVIDER=jev`. Groq usa por defecto `openai/gpt-oss-120b`. Jev usa `AI_GATEWAY_API_KEY` y exige retención cero (ZDR) en AI Gateway para el flujo de ingresos reales. Vercel documenta que Jev admite ZDR y No Training por solicitud. La llamada ZDR de esta cuenta fue rechazada con 403, cuya causa no se confirmó; por eso el adaptador exige tanto el proveedor final `typesafe-ai` como metadatos de planificación que indiquen ZDR solicitado, y falla cerrada si falta cualquiera. `only: ["typesafe-ai"]` restringe el proveedor permitido. ZDR incluye la exclusión de entrenamiento según Vercel; `disallowPromptTraining` por sí solo no sustituye ZDR. El proveedor se selecciona explícitamente; no hay envío automático a un segundo servicio.
-  Una prueba sintética de ZDR repetida el 25 de septiembre a través del AI SDK devolvió HTTP 502 (`GatewayResponseError`, upstream 500) con y sin lista de proveedor. La causa del error sigue sin determinarse y el adaptador no tiene confirmación de ruta segura en vivo.
-  La verificación posterior directa del adaptador Python con el mismo caso ficticio recibió HTTP 403. El adaptador no registró el cuerpo ni los datos de autorización y mantuvo ambas clasificaciones pendientes; todavía falta confirmar el entitlement ZDR de la cuenta.
-- Las sugerencias de IA o reglas requieren revisión humana. Si el proveedor falla, la relación queda pendiente; las reglas remotas pueden dar una pista opcional pero no confirman una clasificación.
-- agent.py redacta los dos avisos con plantillas deterministas.
-- notifier.py simula notificaciones en log salvo que Slack se active expresamente en el entorno privado.
+| Campo | Valores / significado |
+|---|---|
+| `veredicto` | `VALIDA`, `VALIDA_CON_ALERTAS`, `NO_VALIDA`, `NO_ENCONTRADO`, `PENDIENTE`. |
+| `nivel_alerta` | `BAJO`, `MEDIO` o `ALTO`. Es prioridad administrativa, no triage clínico. |
+| `preexistencias[].relacion` | `DIRECTA`, `POSIBLE` o `NINGUNA`. Si `revisada=false`, es una sugerencia o resultado pendiente; no es decisión clínica ni de cobertura. |
+| `preexistencias[].relacion_sugerida` | Relación original cuando hubo sugerencia; `null` cuando no se produjo. |
+| `preexistencias[].revisada` | Indica una resolución humana registrada. Incluye motivo, revisor y fecha cuando aplica. |
+| `fuentes[].estado` | `not_configured`, `connected`, `unavailable`, `invalid_response` o `not_found`; `consultada` indica si Vigilia llamó a la fuente. |
+| `notificaciones[].estado` | `ENVIADA`, `ERROR` o `NO_CONFIGURADA`. Los avisos muestran si la clasificación sigue pendiente. |
 
-La alerta es administrativa. La atención del paciente nunca debe retrasarse.
+`NO_ENCONTRADO` solo describe una respuesta válida de la fuente sin póliza/registro. Integración no configurada, caída, respuesta malformada o mapeo inválido producen `PENDIENTE`. Un 404 HTTP se considera endpoint inaccesible, no ausencia de persona. Una respuesta válida sin registro puede expresarse como `null` para cobertura o como lista vacía en la ruta mapeada de antecedentes.
 
-## Casos de muestra
+## Ingreso manual y consulta
 
-| Cédula | Situación | Resultado con Kev apagado |
-|---|---|---|
-| 8-100-100 | Póliza vigente; asma registrada | VALIDA_CON_ALERTAS por clasificación pendiente |
-| 8-200-200 | Póliza vencida | NO_VALIDA |
-| 8-300-300 | Póliza en período de carencia | VALIDA_CON_ALERTAS |
-| 8-400-400 | Hipertensión y diabetes | VALIDA_CON_ALERTAS por clasificación pendiente |
-| 8-500-500 | Pago atrasado | VALIDA_CON_ALERTAS |
-| 9-999-999 | Asegurado no registrado | NO_ENCONTRADO |
+- `POST /ingresos`: contrato canónico, sesión OIDC, CSRF y permiso `ingress.submit`. En instalaciones donde el formulario web se habilite, el evento va siempre al backend; no hay fallback a datos ficticios.
+- `GET /ingresos?limite=10`: sesión OIDC y permiso `ingress.read`. Devuelve respuestas administrativas recientes sin cédula, hospital ni motivo de ingreso.
+- `GET /integrations/status`: sesión y permiso `ingress.read`; estado de conectores sin secretos.
+- `GET /public-config`: identifica modo demo o producción. No contiene datos de personas ni secretos.
 
-Las fechas de los fixtures son relativas a la fecha en que se inicializa SQLite.
+Un evento ya completado con el mismo identificador y la misma carga devuelve la respuesta persistida. Reutilizar el ID con otra carga devuelve HTTP 409. El sistema no vuelve a emitir notificaciones por un evento duplicado.
+
+## Resolución humana
+
+`POST /ingresos/{evento_id}/clasificaciones/{índice}/revision` requiere sesión OIDC, CSRF y permiso `classification.review`.
+
+```json
+{
+  "relation": "POSIBLE",
+  "reason": "La documentación autorizada respalda una posible relación."
+}
+```
+
+`relation` acepta `DIRECTA`, `POSIBLE` o `NINGUNA`; `reason` requiere entre 3 y 1000 caracteres. Vigilia conserva sugerencia original, resolución, motivo, identidad revisora y fecha en el ingreso y en `review_actions`; también escribe un evento de auditoría. Revisar no cambia los avisos ya enviados.
+
+## Contratos de fuentes
+
+- Cobertura mapea `numero`, `plan`, `vigente_desde`, `vigente_hasta`, `estado_pago` y `carencia_dias`. Las fechas son `YYYY-MM-DD`, los días de carencia un entero no negativo y el estado de pago canónico es `AL_DIA` o `MOROSO`. El conector rechaza otros valores como respuesta inválida.
+- Antecedentes mapea `items` a una lista de hasta 50 elementos; dentro de cada elemento mapea `condition` y opcionalmente `date`.
+- Los destinos `admissions` y `case_manager` reciben un POST estructurado con `event_id`, `verdict`, `alert_level`, `review_pending` y un mensaje fijo, sin datos clínicos.
+
+El panel de integraciones, los encabezados del webhook y el proceso operativo de piloto y respaldo se describen en [`operaciones-produccion.md`](operaciones-produccion.md). Los datos seed son sintéticos y solo están disponibles en modo demo.

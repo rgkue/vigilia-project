@@ -8,12 +8,113 @@
 
 .clientMainArea { width: min(1440px, 100%); padding-top: 116px; padding-bottom: 42px; }
 .clientTopbar { position: relative; z-index: 1; min-height: 62px; padding: 8px 13px; }
+.sessionIdentity { max-width: 180px; overflow: hidden; color: var(--client-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.topbarAction { min-height: 32px; padding: 5px 10px; border: 1px solid var(--client-line); border-radius: 10px; background: rgba(255,255,255,.055); color: var(--client-text); cursor: pointer; font: inherit; font-size: 11px; }
+.topbarAction:hover:not(:disabled) { border-color: rgba(156,231,202,.35); background: rgba(255,255,255,.1); }
+.topbarAction:disabled { opacity: .55; cursor: wait; }
 .clientWordmark { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
 .clientWordmarkIcon { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--client-line); border-radius: 12px; background: rgba(255,255,255,.07); color: var(--client-mint); }
 .clientWordmark > span:last-child { display: grid; gap: 1px; }
 .clientWordmark strong { font-size: 15px; font-weight: 720; letter-spacing: .1em; }
 .clientWordmark small { color: var(--client-faint); font-size: 10px; letter-spacing: .045em; }
 .clientPageStack { display: grid; gap: clamp(30px, 3vw, 36px); margin-top: clamp(30px, 5vw, 54px); }
+.adminPage { gap: 19px; }
+.adminStatusRail { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; }
+.adminStatusRail article { display: grid; gap: 6px; min-width: 0; padding: 13px; border: 1px solid var(--client-line); border-radius: 14px; background: rgba(255,255,255,.035); }
+.adminStatusRail .eyebrow { color: var(--client-faint); font-size: 8px; line-height: 1.3; }
+.adminStatusRail strong { color: var(--client-text); font-size: 12px; }
+.adminStatusRail small { color: var(--client-faint); font-size: 9px; }
+.connectorStatus.connected { color: var(--client-mint); }
+.connectorStatus.unavailable, .connectorStatus.invalid_response { color: #ff9ca4; }
+.adminTabs { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-bottom: 10px; border-bottom: 1px solid var(--client-line); }
+.adminTabs button { min-height: 34px; padding: 6px 11px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--client-muted); cursor: pointer; font: inherit; font-size: 11px; }
+.adminTabs button.active { border-color: var(--client-line); background: rgba(255,255,255,.07); color: var(--client-text); }
+.adminTabs .adminRefresh { margin-left: auto; border-color: var(--client-line); }
+.adminWorkspace { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(300px,.9fr); align-items: start; gap: 14px; }
+.adminCollection, .adminEditor { min-width: 0; padding: 18px; border-radius: 18px; }
+.adminSectionHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.adminSectionHead .eyebrow { color: var(--client-faint); font-size: 9px; }
+.adminSectionHead h2 { margin: 5px 0 0; font-size: 17px; letter-spacing: -.035em; }
+.adminSectionHead .secondaryButton { min-height: 33px; padding: 5px 9px; font-size: 10px; }
+.adminHelp { margin: 10px 0 14px; color: var(--client-faint); font-size: 10px; line-height: 1.65; }
+.adminList { display: grid; gap: 7px; }
+.adminListItem { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px; border: 1px solid var(--client-line); border-radius: 12px; background: rgba(255,255,255,.025); }
+.adminListItem.selected { border-color: rgba(156,231,202,.35); background: rgba(156,231,202,.055); }
+.adminItemMain { display: flex; flex: 1; align-items: center; gap: 9px; min-width: 160px; padding: 0; border: 0; background: transparent; color: var(--client-text); text-align: left; cursor: pointer; }
+.adminItemMain > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.adminItemMain strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.adminItemMain small { overflow: hidden; color: var(--client-faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.adminAvatar, .connectorGlyph { display: grid; width: 31px; height: 31px; flex: none; place-items: center; border: 1px solid var(--client-line); border-radius: 10px; background: rgba(255,255,255,.06); color: var(--client-mint); font-size: 12px; }
+.adminAccountState { flex: none; color: var(--client-faint); font-size: 9px; }
+.adminAccountState.active { color: var(--client-mint); }
+.adminTextButton { padding: 4px 7px; border: 0; background: transparent; color: var(--client-muted); cursor: pointer; font: inherit; font-size: 9px; }
+.adminTextButton:hover:not(:disabled) { color: var(--client-mint); }
+.adminRowActions { display: flex; gap: 3px; }
+.adminKindButtons { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
+.adminKindButtons .secondaryButton { min-height: 29px; padding: 4px 8px; font-size: 9px; }
+.adminField { display: grid; gap: 6px; min-width: 0; margin-top: 13px; color: var(--client-muted); font-size: 10px; }
+.adminField > span, .reviewField > span { color: var(--client-muted); }
+.adminField small { color: var(--client-faint); }
+.adminField input, .adminField select, .adminField textarea, .reviewField select, .reviewField textarea { width: 100%; min-height: 35px; padding: 8px 9px; border: 1px solid var(--client-line); border-radius: 9px; outline: 0; background: rgba(0,0,0,.18); color: var(--client-text); font: inherit; font-size: 11px; }
+.adminField input:focus, .adminField select:focus, .adminField textarea:focus, .reviewField select:focus, .reviewField textarea:focus { border-color: rgba(156,231,202,.5); }
+.adminField select option, .reviewField select option { background: #242426; color: #f5f5f7; }
+.adminFieldGrid { display: grid; grid-template-columns: 100px minmax(0,1fr); gap: 9px; }
+.adminField textarea.mappingEditor { font-family: var(--mono); font-size: 10px; }
+.adminChoices { display: grid; gap: 7px; min-width: 0; margin: 14px 0 0; padding: 0; border: 0; }
+.adminChoices legend { margin-bottom: 7px; color: var(--client-text); font-size: 11px; font-weight: 650; }
+.adminChoices label, .adminToggle { display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 1px solid var(--client-line); border-radius: 10px; background: rgba(255,255,255,.025); cursor: pointer; }
+.adminChoices input, .adminToggle input { margin: 2px 0 0; accent-color: #9ce7ca; }
+.adminChoices label span, .adminToggle span { display: grid; gap: 3px; }
+.adminChoices strong, .adminToggle strong { color: var(--client-text); font-size: 10px; }
+.adminChoices small, .adminToggle small { color: var(--client-faint); font-size: 9px; line-height: 1.45; }
+.adminToggle { margin-top: 13px; }
+.adminFormActions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.adminFormActions .primaryButton, .adminFormActions .secondaryButton { min-height: 34px; padding-inline: 10px; font-size: 10px; }
+.adminNotice { padding: 10px 12px; border: 1px solid rgba(156,231,202,.18); border-radius: 11px; background: rgba(156,231,202,.055); color: var(--client-mint); font-size: 10px; line-height: 1.5; }
+.adminNotice.error { border-color: rgba(255,124,135,.25); background: rgba(255,124,135,.06); color: #ff9ca4; }
+.adminEmpty { padding: 14px 4px; color: var(--client-faint); font-size: 10px; line-height: 1.6; }
+.oneTimeToken { display: grid; gap: 5px; margin-top: 12px; padding: 10px; border: 1px solid rgba(156,231,202,.3); border-radius: 10px; background: rgba(156,231,202,.07); color: var(--client-mint); font-size: 9px; }
+.oneTimeToken code { overflow-wrap: anywhere; color: var(--client-text); font-size: 10px; }
+.credentialList { display: grid; gap: 6px; margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--client-line); }
+.credentialList > .eyebrow { color: var(--client-faint); font-size: 8px; }
+.credentialList > small { color: var(--client-faint); font-size: 9px; }
+.credentialRow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--client-line); border-radius: 9px; color: var(--client-faint); font-size: 9px; }
+.credentialRow code { overflow-wrap: anywhere; color: var(--client-text); font-size: 9px; }
+.credentialRow .adminTextButton { margin-left: auto; }
+.auditCollection { width: 100%; }
+.auditTableWrap { overflow-x: auto; margin-top: 12px; }
+.auditTable { width: 100%; border-collapse: collapse; font-size: 9px; text-align: left; }
+.auditTable th, .auditTable td { padding: 9px 7px; border-bottom: 1px solid var(--client-line); vertical-align: top; }
+.auditTable th { color: var(--client-faint); font-weight: 550; }
+.auditTable td { color: var(--client-muted); }
+.auditTable code { color: var(--client-text); font-size: 9px; }
+.sourceStates { display: grid; gap: 7px; margin: 11px 0 16px; }
+.sourceStates > .eyebrow { color: var(--client-faint); font-size: 8px; }
+.sourceStates > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.sourceState { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--client-line); border-radius: 999px; background: rgba(255,255,255,.035); }
+.sourceState strong { color: var(--client-muted); font-size: 9px; font-weight: 550; }
+.sourceState small { color: var(--client-faint); font-size: 8px; }
+.sourceState.connected small { color: var(--client-mint); }
+.sourceState.unavailable small, .sourceState.invalid_response small { color: #ff9ca4; }
+.classificationReviewSection { display: grid; gap: 9px; margin: 2px 0 18px; padding: 14px; border: 1px solid var(--client-line); border-radius: 15px; background: rgba(255,255,255,.03); }
+.classificationReviewSection > .eyebrow { color: var(--client-faint); font-size: 9px; }
+.classificationReviewSection h3 { margin: -3px 0 0; font-size: 15px; }
+.classificationReviewSection > p { margin: 0 0 3px; color: var(--client-faint); font-size: 10px; line-height: 1.5; }
+.reviewCard { display: grid; gap: 9px; padding: 11px; border: 1px solid var(--client-line); border-radius: 12px; background: rgba(0,0,0,.12); }
+.reviewCard > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 7px; color: var(--client-text); font-size: 10px; }
+.reviewCard > div span, .reviewCard > small { color: var(--client-faint); font-size: 9px; }
+.reviewCard > p { margin: 0; color: var(--client-muted); font-size: 10px; line-height: 1.5; }
+.reviewCard.resolved { border-color: rgba(156,231,202,.18); }
+.reviewField { display: grid; gap: 5px; color: var(--client-muted); font-size: 9px; }
+.reviewField textarea { resize: vertical; }
+.reviewCard .primaryButton { justify-self: start; min-height: 33px; font-size: 10px; }
+.reviewError { color: #ff9ca4 !important; }
+.authGate { --client-text: #f5f5f7; --client-muted: rgba(235,235,245,.68); --client-faint: rgba(235,235,245,.45); --client-line: rgba(255,255,255,.105); --client-mint: #9ce7ca; display: grid; min-height: 100dvh; place-items: center; padding: 24px; background: #171719; color: #f5f5f7; }
+.authGateCard { display: grid; width: min(440px,100%); justify-items: start; gap: 12px; padding: clamp(24px,5vw,38px); border-radius: 22px; }
+.authGateCard .eyebrow { color: var(--client-faint); font-size: 9px; letter-spacing: .14em; }
+.authGateCard h1 { margin: 0; font-size: 28px; letter-spacing: -.05em; }
+.authGateCard > p { margin: 0; color: var(--client-muted); font-size: 12px; line-height: 1.65; }
+.authLoginButton { text-decoration: none; }
 .clientHero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr); align-items: center; gap: clamp(32px, 6vw, 86px); padding: clamp(8px, 2vw, 20px) 0 12px; }
 .clientHeroCopy { max-width: 700px; }
 .clientEyebrow { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 18px; color: var(--client-mint); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .15em; }
@@ -331,6 +432,13 @@
 }
 
 @media (max-width: 640px) {
+  .adminStatusRail { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .adminWorkspace { grid-template-columns: minmax(0,1fr); }
+  .adminCollection, .adminEditor { padding: 14px; }
+  .adminTabs { gap: 4px; }
+  .adminTabs button { padding-inline: 8px; font-size: 10px; }
+  .sessionIdentity { display: none; }
+  .topbarAction { min-height: 27px; padding: 4px 7px; font-size: 9px; }
   .activitySheetBackdrop { align-items: flex-end; }
   .activitySheet { width: 100%; height: 100dvh; padding: max(16px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom)); border: 1px solid rgba(255,255,255,.14); border-bottom: 0; border-radius: 22px 22px 0 0; animation-name: vigiliaSheetUp; }
   .activitySheetHeader { gap: 10px; padding-bottom: 14px; }

@@ -152,6 +152,7 @@ export function makeLocalResult(event: IngressEvent, demoCase: DemoCase): AgentR
       admissions: { status: "simulated", channel: "demo local" },
       case_manager: { status: "simulated", channel: "demo local" },
     },
+    integrations: [],
     source: "local_demo",
   };
 }

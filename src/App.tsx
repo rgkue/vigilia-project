@@ -1,21 +1,25 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { CardNav } from "./components/CardNav";
+import { AdminPanel } from "./components/AdminPanel";
 import { demoCases, makeDemoEvent } from "./data/demoCases";
 import { BackendConnectionError, checkBackendHealth, isBackendConfigured, loadIngressHistory, processDemoIngress, processIngress } from "./lib/agentApi";
+import { getOperationalIntegrationStatuses, reviewClassification, type IntegrationStatus } from "./lib/adminApi";
+import { apiUrl, getPublicConfig, getSession, logoutSession, type CurrentSession } from "./lib/clientApi";
 import { evaluateJevCase, loadJevStatus } from "./lib/jevApi";
 import { classificationLabel } from "./types";
-import type { AdministrativeVerdict, AgentResponse, AlertLevel, DemoCase, IngressEvent, JevEvaluation, JevRelation, NotificationResult } from "./types";
+import type { AdministrativeVerdict, AgentResponse, AlertLevel, ClassificationResult, DemoCase, IngressEvent, JevEvaluation, JevRelation, NotificationResult } from "./types";
 
 type IconName = "pulse" | "overview" | "intake" | "shield" | "clock" | "hospital" | "bell" | "arrow" | "check" | "spark" | "network" | "refresh";
 type BackendStatus = "local" | "checking" | "online" | "offline";
 type JevStatus = "checking" | "configured" | "missing" | "unavailable";
-type SectionId = "overview" | "intake" | "activity" | "simulator";
+type SectionId = "overview" | "intake" | "activity" | "simulator" | "admin";
 
 const ROUTE_BY_SECTION: Record<SectionId, string> = {
   overview: "/resumen",
   intake: "/ingreso",
   activity: "/actividad",
   simulator: "/simulador",
+  admin: "/admin",
 };
 
 const SECTION_BY_ROUTE: Record<string, SectionId> = {
@@ -24,6 +28,7 @@ const SECTION_BY_ROUTE: Record<string, SectionId> = {
   "/ingreso": "intake",
   "/actividad": "activity",
   "/simulador": "simulator",
+  "/admin": "admin",
 };
 
 const PAGE_TITLE: Record<SectionId, string> = {
@@ -31,6 +36,7 @@ const PAGE_TITLE: Record<SectionId, string> = {
   intake: "Registrar ingreso",
   activity: "Actividad reciente",
   simulator: "Simulador",
+  admin: "Administración",
 };
 
 function sectionForPath(pathname: string): SectionId {
@@ -91,6 +97,28 @@ function verdictLabel(verdict: AdministrativeVerdict) {
     case "NO_VALIDA": return "No vigente";
     case "NO_ENCONTRADO": return "No encontrado";
     default: return "Pendiente";
+  }
+}
+
+function integrationLabel(kind: string) {
+  switch (kind) {
+    case "coverage": return "Cobertura";
+    case "history": return "Antecedentes";
+    case "ingress": return "Ingreso";
+    case "admissions": return "Admisiones";
+    case "case_manager": return "Gestor de casos";
+    default: return kind;
+  }
+}
+
+function integrationStatusLabel(status: string, eventSource = false) {
+  switch (status) {
+    case "connected": return eventSource ? "Respondió" : "Conectada";
+    case "not_found": return "Sin registro";
+    case "invalid_response": return "Respuesta inválida";
+    case "unavailable": return "Sin respuesta";
+    case "pending": return "Pendiente";
+    default: return "Sin configurar";
   }
 }
 
@@ -191,6 +219,10 @@ function ResultPanel({ result, pending, emptyDescription, simulator = false }: {
       </div>
       <p className="resultSummary">{result.summary}</p>
       <div className="eventReference"><span>REFERENCIA DEL EVENTO</span><code>{result.event_id}</code></div>
+      {result.integrations.length > 0 && <section className="sourceStates" aria-label="Estado de fuentes consultadas">
+        <span className="eyebrow">ESTADO DE LAS FUENTES</span>
+        <div>{result.integrations.map((source) => <span className={`sourceState ${source.status}`} key={source.kind}><strong>{integrationLabel(source.kind)}</strong><small>{integrationStatusLabel(source.status, true)}</small></span>)}</div>
+      </section>}
       <div className="verificationGrid">
         <div className="verificationTile">
           <div className="tileTop"><Icon name="shield" size={16} /><span>Estado de póliza</span></div>
@@ -208,13 +240,16 @@ function ResultPanel({ result, pending, emptyDescription, simulator = false }: {
                     <div className="classificationLine"><strong>{classification.condition}</strong><span>{classificationLabel(classification)}</span></div>
                     <p>{classification.explanation}</p>
                     <small>
-                      {classification.source === "backend"
+                      {classification.reviewed
+                        ? `Revisión humana · sugerencia original: ${classification.suggestedRelation ?? "no disponible"}`
+                        : classification.source === "backend"
                         ? "Backend · revisión humana"
                         : classification.relation === "PENDIENTE"
                           ? `${classification.source === "kev" ? "Kev" : classification.source === "groq" ? "Groq" : "Jev"} sin clasificación confirmada · revisión humana`
                           : `${classification.source === "kev" ? "Kev" : classification.source === "groq" ? "Groq" : "Jev"} · sugerencia · revisión humana`}
                       {classification.probability === null ? "" : ` · Probabilidad: ${Math.round(classification.probability * 100)}%`}
                     </small>
+                    {classification.reviewed && classification.reviewReason && <small>Motivo de resolución: {classification.reviewReason} · {formatDate(classification.reviewedAt ?? undefined)}</small>}
                   </li>
                 ))}
               </ul>
@@ -280,7 +315,60 @@ function ActivityPanel({ entries, error, loading, activeEventId, highlightedEven
   );
 }
 
-function ActivityDetailsSheet({ entry, onClose, returnFocusRef }: { entry: AgentResponse; onClose: () => void; returnFocusRef: { current: HTMLButtonElement | null } }) {
+function ClassificationReviewCard({ classification, index, onReview }: {
+  classification: ClassificationResult;
+  index: number;
+  onReview: (index: number, relation: Exclude<JevRelation, "PENDIENTE">, reason: string) => Promise<void>;
+}) {
+  const [relation, setRelation] = useState<Exclude<JevRelation, "PENDIENTE">>(() => {
+    const suggestion = classification.suggestedRelation ?? classification.relation;
+    return suggestion === "DIRECTA" || suggestion === "NINGUNA" ? suggestion : "POSIBLE";
+  });
+  const [reason, setReason] = useState("");
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState("");
+
+  if (classification.reviewed) {
+    return <article className="reviewCard resolved">
+      <div><strong>{classification.condition}</strong><span>Resuelta · {classificationLabel(classification)}</span></div>
+      <p>Sugerencia original: {classification.suggestedRelation ?? "no disponible"}. {classification.reviewReason ? `Motivo: ${classification.reviewReason}` : ""}</p>
+      <small>{classification.reviewerId ? `Revisor ${classification.reviewerId} · ` : ""}{formatDate(classification.reviewedAt ?? undefined)}</small>
+    </article>;
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (working || reason.trim().length < 3) return;
+    setWorking(true);
+    setError("");
+    try {
+      await onReview(index, relation, reason.trim());
+    } catch (reviewError) {
+      setError(reviewError instanceof Error ? reviewError.message : "No se pudo guardar la revisión.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return <form className="reviewCard" onSubmit={submit}>
+    <div><strong>{classification.condition}</strong><span>{classification.suggestedRelation ? `Sugerencia: ${classification.suggestedRelation}` : "Clasificación pendiente"}</span></div>
+    {!classification.suggestedRelation && <p>La fuente no entregó una sugerencia confirmada. Puedes completar una clasificación humana.</p>}
+    <label className="reviewField"><span>Resolución</span><select value={relation} onChange={(event) => setRelation(event.target.value as Exclude<JevRelation, "PENDIENTE">)}>
+      <option value="DIRECTA">Confirmar relación directa</option><option value="POSIBLE">Marcar relación posible</option><option value="NINGUNA">Descartar relación</option>
+    </select></label>
+    <label className="reviewField"><span>Motivo de revisión</span><textarea required minLength={3} maxLength={1000} rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explica brevemente la resolución" /></label>
+    {error && <p className="reviewError" role="alert">{error}</p>}
+    <button className="primaryButton" type="submit" disabled={working || reason.trim().length < 3}>{working ? "Guardando revisión…" : "Guardar resolución"}</button>
+  </form>;
+}
+
+function ActivityDetailsSheet({ entry, onClose, returnFocusRef, canReview, onReview }: {
+  entry: AgentResponse;
+  onClose: () => void;
+  returnFocusRef: { current: HTMLButtonElement | null };
+  canReview: boolean;
+  onReview: (eventId: string, index: number, relation: Exclude<JevRelation, "PENDIENTE">, reason: string) => Promise<void>;
+}) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const onCloseRef = useRef(onClose);
@@ -348,6 +436,12 @@ function ActivityDetailsSheet({ entry, onClose, returnFocusRef }: { entry: Agent
         </header>
         <div className="activitySheetBody">
           <ResultPanel result={entry} pending={false} emptyDescription="No hay más información para este ingreso." />
+          {canReview && entry.classifications.some((classification) => classification.reviewRequired) && <section className="classificationReviewSection">
+            <span className="eyebrow">REVISIÓN HUMANA</span>
+            <h3>Resolución de sugerencias</h3>
+            <p>La resolución queda auditada y no modifica avisos que ya fueron enviados.</p>
+            {entry.classifications.map((classification, index) => classification.reviewRequired && <ClassificationReviewCard key={`${classification.condition}-${index}`} classification={classification} index={index} onReview={(classificationIndex, relation, reason) => onReview(entry.event_id, classificationIndex, relation, reason)} />)}
+          </section>}
         </div>
       </aside>
     </div>
@@ -581,9 +675,28 @@ function MetricCount({ value }: { value: number }) {
 
 const liveIngressEnabled = import.meta.env.VITE_LIVE_INGRESS_ENABLED === "true";
 
+function LoginGate({ loading, error, loginUrl }: { loading: boolean; error: string; loginUrl: string }) {
+  return <main className="authGate">
+    <div className="authGateCard glassPanel">
+      <span className="clientWordmarkIcon"><Icon name="pulse" size={18} /></span>
+      <span className="eyebrow">VIGILIA · ACCESO DEL CLIENTE</span>
+      <h1>{loading ? "Verificando acceso" : "Inicia sesión"}</h1>
+      <p>{loading ? "Comprobando el perfil autorizado en el proveedor de identidad del cliente…" : "Usa la cuenta corporativa habilitada para esta instalación."}</p>
+      {error && <p className="adminNotice error" role="alert">{error}</p>}
+      {!loading && <a className="primaryButton authLoginButton" href={loginUrl}>Continuar con el proveedor de identidad</a>}
+    </div>
+  </main>;
+}
+
 function App() {
   const [activeSection, setActiveSection] = useState<SectionId>(() => sectionForPath(window.location.pathname));
+  const [serverMode, setServerMode] = useState<"demo" | "production" | null>(isBackendConfigured ? null : "demo");
+  const [session, setSession] = useState<CurrentSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(isBackendConfigured);
+  const [authError, setAuthError] = useState("");
+  const [logoutPending, setLogoutPending] = useState(false);
   const [history, setHistory] = useState<AgentResponse[]>([]);
+  const [operationalStatuses, setOperationalStatuses] = useState<IntegrationStatus[]>([]);
   const [historyError, setHistoryError] = useState("");
   const [historyLoading, setHistoryLoading] = useState(isBackendConfigured);
   const [backendStatus, setBackendStatus] = useState<BackendStatus>(isBackendConfigured ? "checking" : "local");
@@ -604,16 +717,54 @@ function App() {
   const jevRequestControllerRef = useRef<AbortController | null>(null);
   const jevRequestIdRef = useRef(0);
   const selectedCase = demoCases.find((item) => item.id === selectedId) ?? null;
+  const permissions = session?.user.permissions ?? [];
+  const canOpenAdmin = serverMode === "production" && permissions.some((permission) => ["users.manage", "integrations.manage", "audit.read"].includes(permission));
+  const canReview = permissions.includes("classification.review");
+  const canReadIngress = serverMode !== "production" || permissions.includes("ingress.read");
+  const canSubmitIngress = serverMode !== "production" || permissions.includes("ingress.submit");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isBackendConfigured) {
+      setServerMode("demo");
+      setSessionLoading(false);
+      return;
+    }
+    (async () => {
+      try {
+        const config = await getPublicConfig();
+        if (cancelled) return;
+        setServerMode(config.mode);
+        try {
+          const nextSession = await getSession();
+          if (!cancelled) setSession(nextSession);
+        } catch {
+          if (!cancelled) setSession(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setServerMode(import.meta.env.DEV ? "demo" : "production");
+          setAuthError("No se pudo conectar con Vigilia. Comprueba el servicio antes de continuar.");
+        }
+      } finally {
+        if (!cancelled) setSessionLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const syncRoute = () => {
       const currentPath = window.location.pathname;
-      const nextSection = SECTION_BY_ROUTE[currentPath];
+      let nextSection = SECTION_BY_ROUTE[currentPath];
+      if (serverMode === "production" && nextSection === "simulator") nextSection = "overview";
+      if (nextSection === "admin" && !canOpenAdmin && !sessionLoading) nextSection = "overview";
       if (!nextSection) {
         window.history.replaceState(null, "", ROUTE_BY_SECTION.overview);
         setActiveSection("overview");
       } else {
-        if (currentPath === "/") window.history.replaceState(null, "", ROUTE_BY_SECTION.overview);
+        const effectivePath = ROUTE_BY_SECTION[nextSection];
+        if (currentPath !== effectivePath) window.history.replaceState(null, "", effectivePath);
         setActiveSection(nextSection);
       }
       window.scrollTo({ top: 0, behavior: "auto" });
@@ -621,7 +772,7 @@ function App() {
     syncRoute();
     window.addEventListener("popstate", syncRoute);
     return () => window.removeEventListener("popstate", syncRoute);
-  }, []);
+  }, [serverMode, canOpenAdmin, sessionLoading]);
 
   useEffect(() => {
     document.title = PAGE_TITLE[activeSection] + " · Vigilia";
@@ -659,45 +810,78 @@ function App() {
   useEffect(() => () => jevRequestControllerRef.current?.abort(), []);
 
   useEffect(() => {
-    if (!isBackendConfigured) return;
+    if (!isBackendConfigured || sessionLoading) return;
+    if (serverMode === "production" && !session) return;
     let cancelled = false;
-    Promise.allSettled([checkBackendHealth(), loadIngressHistory()]).then(([healthResult, historyResult]) => {
+    Promise.allSettled([
+      checkBackendHealth(),
+      canReadIngress ? loadIngressHistory() : Promise.resolve([] as AgentResponse[]),
+      canReadIngress ? getOperationalIntegrationStatuses() : Promise.resolve([] as IntegrationStatus[]),
+    ]).then(([healthResult, historyResult, integrationResult]) => {
       if (cancelled) return;
       const healthOnline = healthResult.status === "fulfilled" && healthResult.value;
-      setBackendStatus(healthOnline || historyResult.status === "fulfilled" ? "online" : "offline");
-      if (historyResult.status === "fulfilled") {
+      setBackendStatus(healthOnline || (canReadIngress && historyResult.status === "fulfilled") ? "online" : "offline");
+      if (!canReadIngress) {
+        setHistoryError("Tu perfil no tiene permiso para consultar el historial de ingresos.");
+      } else if (historyResult.status === "fulfilled") {
         setHistory(clientEntries(historyResult.value));
         setHistoryError("");
       } else {
         const reason = historyResult.reason;
         setHistoryError(reason instanceof Error ? reason.message : "No se pudo consultar la actividad.");
       }
+      if (integrationResult.status === "fulfilled") setOperationalStatuses(integrationResult.value);
       setHistoryLoading(false);
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [sessionLoading, serverMode, session, canReadIngress]);
 
   function navigateToPath(path: string) {
-    const nextSection = SECTION_BY_ROUTE[path];
+    let nextSection = SECTION_BY_ROUTE[path];
+    if (serverMode === "production" && nextSection === "simulator") nextSection = "overview";
+    if (nextSection === "admin" && !canOpenAdmin) nextSection = "overview";
     if (!nextSection) return;
-    if (window.location.pathname !== path) window.history.pushState(null, "", path);
+    const effectivePath = ROUTE_BY_SECTION[nextSection];
+    if (window.location.pathname !== effectivePath) window.history.pushState(null, "", effectivePath);
     setActiveSection(nextSection);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function refreshHistory() {
-    if (!isBackendConfigured) return;
+  async function refreshHistory(): Promise<AgentResponse[] | null> {
+    if (!isBackendConfigured || !canReadIngress) return null;
     setHistoryLoading(true);
     setHistoryError("");
     try {
       const entries = clientEntries(await loadIngressHistory());
       setBackendStatus("online");
       setHistory(entries);
+      return entries;
     } catch (loadError) {
       if (loadError instanceof BackendConnectionError) setBackendStatus("offline");
       setHistoryError(loadError instanceof Error ? loadError.message : "No se pudo consultar la actividad.");
+      return null;
     } finally {
       setHistoryLoading(false);
+    }
+  }
+
+  async function resolveClassification(eventId: string, index: number, relation: Exclude<JevRelation, "PENDIENTE">, reason: string) {
+    await reviewClassification(eventId, index, relation, reason);
+    const entries = await refreshHistory();
+    const updated = entries?.find((entry) => entry.event_id === eventId);
+    if (updated) setSelectedActivity(updated);
+  }
+
+  async function signOut() {
+    setLogoutPending(true);
+    try {
+      await logoutSession();
+      setSession(null);
+      setAuthError("");
+    } catch (logoutError) {
+      setAuthError(logoutError instanceof Error ? logoutError.message : "No se pudo cerrar la sesión.");
+    } finally {
+      setLogoutPending(false);
     }
   }
 
@@ -752,7 +936,7 @@ function App() {
   }
 
   async function submitLiveIngress(draft: LiveIngressDraft) {
-    if (!isBackendConfigured || backendStatus !== "online" || !liveIngressEnabled || livePending) return;
+    if (!isBackendConfigured || backendStatus !== "online" || !liveIngressEnabled || !canSubmitIngress || livePending) return;
     setLivePending(true);
     setLiveError("");
     setLiveResult(null);
@@ -771,6 +955,7 @@ function App() {
       setLiveResult(response);
       setHistory((current) => clientEntries(mergeHistory([response], current)));
       setHighlightedEventId(response.event_id);
+      if (canReadIngress) void getOperationalIntegrationStatuses().then(setOperationalStatuses).catch(() => undefined);
     } catch (submitError) {
       if (submitError instanceof BackendConnectionError) setBackendStatus("offline");
       setLiveError(submitError instanceof Error ? submitError.message : "No se pudo registrar el ingreso.");
@@ -794,7 +979,7 @@ function App() {
       ? "Comprobando servicio"
       : backendStatus === "online" ? "Servicio conectado" : "Servicio no disponible";
   const modeClass = backendStatus === "online" ? "configured" : backendStatus;
-  const canSubmitLive = isBackendConfigured && backendStatus === "online" && liveIngressEnabled;
+  const canSubmitLive = isBackendConfigured && backendStatus === "online" && liveIngressEnabled && canSubmitIngress;
   const liveStatusMessage = !isBackendConfigured
     ? "La conexión con el servicio aún no está configurada."
     : backendStatus === "checking"
@@ -803,7 +988,9 @@ function App() {
         ? "No se pudo conectar con el servicio. Vuelve a intentarlo más tarde."
         : !liveIngressEnabled
           ? "El registro no está habilitado en esta instalación."
-          : "Servicio conectado. Revisa la información antes de enviarla.";
+          : !canSubmitIngress
+            ? "Tu perfil no tiene permiso para registrar ingresos manualmente."
+            : "Servicio conectado. Revisa la información antes de enviarla.";
 
   const urgentCount = history.filter((entry) => entry.administrative_level === "prioritaria").length;
   const reviewCount = history.filter((entry) => entry.verdict === "VALIDA_CON_ALERTAS" || entry.verdict === "NO_ENCONTRADO" || entry.verdict === "PENDIENTE").length;
@@ -814,13 +1001,17 @@ function App() {
       ? "Se mostrará al conectar el servicio"
       : "No disponible con la conexión actual";
 
+  if (sessionLoading || (serverMode === "production" && !session)) {
+    return <LoginGate loading={sessionLoading} error={authError} loginUrl={apiUrl("/auth/login")} />;
+  }
+
   return (
     <div className="appFrame clientAppFrame">
       <a className="skipLink" href="#main">Saltar al contenido</a>
       <div className="ambient ambientOne" aria-hidden="true" />
       <div className="ambient ambientTwo" aria-hidden="true" />
       <div className="mobileCardNav">
-        <CardNav activeSection={activeSection === "simulator" ? "overview" : activeSection} status={modeLabel} statusTone={modeClass} onNavigate={navigateToPath} />
+        <CardNav activeSection={activeSection === "simulator" || activeSection === "admin" ? "overview" : activeSection} status={modeLabel} statusTone={modeClass} onNavigate={navigateToPath} />
       </div>
 
       <main id="main" className="mainArea clientMainArea">
@@ -829,7 +1020,14 @@ function App() {
             <span className="clientWordmarkIcon"><Icon name="pulse" size={17} /></span>
             <span><strong>Vigilia</strong><small>Coordinación de ingresos</small></span>
           </a>
-          <div className="topbarRight"><span className={"modeBadge " + modeClass}><i />{modeLabel}</span></div>
+          <div className="topbarRight">
+            <span className={"modeBadge " + modeClass}><i />{serverMode === "production" ? "Producción" : serverMode === "demo" ? "Demo" : modeLabel}</span>
+            {serverMode === "production" && session && <>
+              <span className="sessionIdentity" title={session.user.email}>{session.user.display_name}</span>
+              {canOpenAdmin && <button className="topbarAction" type="button" onClick={() => navigateToPath(activeSection === "admin" ? "/resumen" : "/admin")}>{activeSection === "admin" ? "Volver" : "Administración"}</button>}
+              <button className="topbarAction" type="button" onClick={() => void signOut()} disabled={logoutPending}>{logoutPending ? "Saliendo…" : "Cerrar sesión"}</button>
+            </>}
+          </div>
         </header>
 
         <div key={activeSection} className={`routeView routeView-${activeSection}`}>
@@ -865,6 +1063,11 @@ function App() {
               <article className="clientMetric"><span>Prioridad administrativa</span>{metricsReady ? <MetricCount value={urgentCount} /> : <strong>—</strong>}<small>{metricsReady ? "Dentro de los registros consultados" : metricUnavailable}</small></article>
             </section>
 
+            {canReadIngress && <section className="adminStatusRail operationalStatusRail" aria-label="Estado de Vigilia y sus integraciones">
+              <article><span className="eyebrow">VIGILIA</span><strong className={`connectorStatus ${backendStatus === "online" ? "connected" : backendStatus}`}>{backendStatus === "online" ? "API activa" : backendStatus === "checking" ? "Comprobando" : backendStatus === "offline" ? "Sin respuesta" : "Sin configurar"}</strong><small>Servicio de esta instalación</small></article>
+              {operationalStatuses.map((source) => <article key={source.kind}><span className="eyebrow">{integrationLabel(source.kind)}</span><strong className={`connectorStatus ${source.status}`}>{integrationStatusLabel(source.status)}</strong><small>{source.last_checked_at ? formatDate(source.last_checked_at) : "Sin prueba reciente"}</small></article>)}
+            </section>}
+
             <section className="clientSectionHeading"><div><span className="eyebrow">SEGUIMIENTO</span><h2>Actividad reciente</h2><p>Consulta los ingresos recibidos por el servicio y abre su detalle administrativo.</p></div><button className="textAction" type="button" onClick={() => navigateToPath("/actividad")}>Ver historial <Icon name="arrow" size={15} /></button></section>
             <ActivityPanel entries={history.slice(0, 5)} error={historyError} loading={historyLoading} activeEventId={selectedActivity?.event_id ?? liveResult?.event_id ?? ""} highlightedEventId={highlightedEventId} onRefresh={refreshHistory} onSelect={selectHistoryEntry} />
           </div>
@@ -882,16 +1085,17 @@ function App() {
         )}
 
         {activeSection === "simulator" && (
-          <SimulatorPage selectedCase={selectedCase} result={demoResult} pending={demoPending} error={demoError} jevStatus={jevStatus} jevEvaluation={jevEvaluation} jevPending={jevPending} jevError={jevError} onSelect={selectDemoCase} onSubmit={runDemoScenario} onEvaluate={runJevEvaluation} />
+          serverMode !== "production" && <SimulatorPage selectedCase={selectedCase} result={demoResult} pending={demoPending} error={demoError} jevStatus={jevStatus} jevEvaluation={jevEvaluation} jevPending={jevPending} jevError={jevError} onSelect={selectDemoCase} onSubmit={runDemoScenario} onEvaluate={runJevEvaluation} />
         )}
+        {activeSection === "admin" && canOpenAdmin && <AdminPanel permissions={permissions} />}
         </div>
 
-        {selectedActivity && <ActivityDetailsSheet entry={selectedActivity} onClose={closeActivityDetails} returnFocusRef={activityReturnFocusRef} />}
+        {selectedActivity && <ActivityDetailsSheet entry={selectedActivity} onClose={closeActivityDetails} returnFocusRef={activityReturnFocusRef} canReview={canReview} onReview={resolveClassification} />}
 
         <footer className="pageFooter clientFooter">
           <span className="footerBrand">Vigilia</span>
           <span>Coordinación administrativa de ingresos</span>
-          <button className="footerSimulator" type="button" onClick={() => navigateToPath("/simulador")}>Simulador <span aria-hidden="true">↗</span></button>
+          {serverMode !== "production" && <button className="footerSimulator" type="button" onClick={() => navigateToPath("/simulador")}>Simulador <span aria-hidden="true">↗</span></button>}
         </footer>
       </main>
     </div>

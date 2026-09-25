@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 TEST_DIRECTORY = tempfile.TemporaryDirectory(prefix="vigilia-api-tests-")
+os.environ["VIGILIA_MODE"] = "demo"
 os.environ["VIGILIA_DB"] = str(Path(TEST_DIRECTORY.name) / "vigilia-tests.db")
 os.environ["VIGILIA_KEY"] = ""
 os.environ["VIGILIA_AI_PROVIDER"] = "kev"

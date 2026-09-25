@@ -2,3 +2,6 @@ fastapi
 uvicorn[standard]
 httpx
 python-dotenv
+authlib>=1.6,<2
+cryptography>=44,<47
+psycopg[binary]>=3.2,<4

@@ -1,176 +1,94 @@
 # Vigilia
 
-**Sistema de alerta temprana de ingresos a emergencias.**
-Solución al Reto 4 del hackIAthon de Viamatica y ADEN.
+Vigilia coordina ingresos hospitalarios con consultas administrativas de cobertura y antecedentes autorizados. Es una instalación aislada por cliente: los datos, conexiones y usuarios se mantienen dentro de la infraestructura del cliente.
 
-- **Agente en línea:** `<ENLACE PÚBLICO DEL DESPLIEGUE>`
-- **Documentación interactiva de la API:** `<ENLACE PÚBLICO>/docs`
+La salida de Vigilia es administrativa; no decide atención clínica ni debe retrasarla. En producción la IA externa está desactivada hasta que el cliente apruebe proveedor, finalidad, retención, transferencia y campos transmitidos. Si una fuente falta o falla, el resultado queda pendiente y no se presenta como “sin registro”.
 
----
+## Arquitectura
 
-## Contexto del reto
+- **Frontend:** React, TypeScript y Vite.
+- **Backend:** FastAPI con contratos Pydantic.
+- **Datos:** SQLite solo en demo; PostgreSQL y migraciones versionadas en producción.
+- **Acceso humano:** OIDC más perfiles, roles y permisos administrados en Vigilia.
+- **Acceso de sistemas:** credenciales de webhook independientes por integración, revocables y rotables.
+- **Conectores:** REST/HTTPS con mapeos declarativos a los contratos canónicos de Vigilia.
+- **Auditoría:** cambios de acceso, integración, ingreso y revisión humana sin secretos ni texto clínico en el registro técnico.
 
-El reto pide un webhook que se active cuando un asegurado ingresa a la emergencia de un hospital. Un agente debe revisar de inmediato la validez de la póliza y el historial de preexistencias, y notificar de forma simultánea al departamento de admisiones del hospital y al gestor de casos del seguro.
+## Demo local
 
-## El problema
+Requiere Node.js 20+ y Python 3.11+.
 
-Hoy, cuando un asegurado llega a emergencias, ninguna de las dos partes tiene la información completa a tiempo:
-
-- El **hospital** no sabe con certeza si la póliza está vigente, al día o en período de carencia.
-- El **seguro** ni siquiera se entera de que su asegurado fue ingresado.
-- La relación entre el motivo de ingreso y una condición preexistente se descubre tarde, y termina en demoras administrativas y disputas de cobertura.
-
-## La solución
-
-Vigilia convierte el ingreso en un evento que dispara todo el proceso de forma automática:
-
-1. El hospital envía el ingreso al webhook.
-2. Vigilia valida la póliza con **reglas exactas**: vigencia, estado de pago y período de carencia.
-3. Un **agente de inteligencia artificial** (Claude) interpreta el motivo de ingreso y determina si se relaciona con alguna preexistencia del historial.
-4. Se emite un veredicto con su nivel de alerta.
-5. Se redacta un mensaje distinto para cada destinatario y ambos se envían **en paralelo**: admisiones del hospital y gestor de casos del seguro.
-6. Todo queda registrado para auditoría.
-
-**Principio de diseño:** lo exacto lo decide el código (fechas, pagos, carencias) y la inteligencia artificial interpreta solo lo ambiguo (por ejemplo, si «dolor torácico» guarda relación con «hipertensión arterial»). Así el resultado es confiable, explicable y auditable.
-
-> La validación es **administrativa**: en emergencias el paciente se atiende siempre. La alerta informa; no condiciona la atención.
-
-## Cómo funciona
-
-```mermaid
-flowchart LR
-    A["Hospital registra el ingreso"] -->|"POST /webhook/ingreso"| B["Validación del evento"]
-    B --> C["Consulta de asegurado, póliza y preexistencias"]
-    C --> D["Reglas exactas: vigencia, pago, carencia"]
-    C --> E["Agente de IA: relación con preexistencias"]
-    D --> F["Veredicto y nivel de alerta"]
-    E --> F
-    F --> G["Mensaje para admisiones"]
-    F --> H["Mensaje para el gestor de casos"]
-    G --> I["Notificación simultánea"]
-    H --> I
-    I --> J["Registro en base de datos"]
-```
-
-### Veredictos
-
-| Veredicto | Significado |
-|---|---|
-| `VALIDA` | Póliza vigente, al día y sin alertas. |
-| `VALIDA_CON_ALERTAS` | Póliza vigente, pero con carencia, pago atrasado o preexistencia relacionada. |
-| `NO_VALIDA` | Póliza vencida. |
-| `NO_ENCONTRADO` | No existe el asegurado o no tiene póliza. |
-
-Nivel de alerta: `BAJO`, `MEDIO` o `ALTO`.
-
-## Ejemplo
-
-**Entrada**
-
-```bash
-curl -X POST "$URL/webhook/ingreso" -H "Content-Type: application/json" -d '{
-  "evento_id": "ING-0001",
-  "cedula": "8-400-400",
-  "hospital": "Hospital Punta Pacífica",
-  "motivo_ingreso": "Dolor torácico opresivo",
-  "triage": 2,
-  "fecha_ingreso": "2026-09-24T14:32:00-05:00"
-}'
-```
-
-**Salida (resumen)**
-
-```json
-{
-  "evento_id": "ING-0001",
-  "veredicto": "VALIDA_CON_ALERTAS",
-  "nivel_alerta": "ALTO",
-  "preexistencias": [
-    { "condicion": "Hipertensión arterial", "relacion": "DIRECTA", "justificacion": "..." }
-  ],
-  "mensaje_admisiones": "...",
-  "mensaje_gestor": "...",
-  "notificaciones": [
-    { "destino": "admisiones", "canal": "slack", "estado": "ENVIADA" },
-    { "destino": "gestor_casos", "canal": "slack", "estado": "ENVIADA" }
-  ]
-}
-```
-
-El contrato completo de datos y los casos de prueba están en [`backend/docs/contratos.md`](backend/docs/contratos.md).
-
-## Tecnologías
-
-| Componente | Herramienta | Función |
-|---|---|---|
-| Servidor | Python y FastAPI | Recibe el webhook y orquesta el flujo. |
-| Validación | Pydantic | Define y valida el contrato de datos. |
-| Base de datos | SQLite | Asegurados, pólizas, preexistencias, ingresos y notificaciones. |
-| Agente | API de Claude (Anthropic) | Relaciona el motivo de ingreso con las preexistencias y redacta los mensajes. |
-| Notificaciones | Webhooks de Slack, `asyncio` y `httpx` | Envío simultáneo a admisiones y gestor de casos. |
-| Pruebas | pytest | Verifica el veredicto de cada caso de prueba. |
-
-## Ejecutar en local
-
-Requisitos: Python 3.11 o superior.
-
-```bash
+```powershell
+Copy-Item .env.example .env.local
+Copy-Item backend/.env.example backend/.env
 cd backend
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-cp .env.example .env          # completar las variables de entorno
-uvicorn app.main:app --reload
+$env:VIGILIA_MODE = "demo"
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-La documentación interactiva queda disponible en `http://localhost:8000/docs`.
+En otra terminal, desde la raíz:
 
-### Variables de entorno
+```powershell
+npm install
+npm run dev
+```
+
+La demo utiliza fixtures únicamente si `VIGILIA_MODE=demo` y `VIGILIA_SEED_DEMO=true`. Si se quiere una demo vacía, define `VIGILIA_SEED_DEMO=false`. El simulador local solo corre en desarrollo; un ingreso real siempre llama al backend y nunca se reemplaza por un caso ficticio.
+
+## Producción
+
+La aplicación sirve en modo producción por defecto y se niega a iniciar si falta PostgreSQL o alguna configuración de seguridad obligatoria. Revisa [`backend/.env.example`](backend/.env.example) y configura los secretos en el gestor de secretos de la infraestructura del cliente, no en Git ni en variables `VITE_*`.
+
+Variables principales:
 
 | Variable | Uso |
 |---|---|
-| `ANTHROPIC_API_KEY` | Acceso a la API de Claude. |
-| `SLACK_WEBHOOK_ADMISIONES` | Canal de notificación de admisiones. |
-| `SLACK_WEBHOOK_GESTOR` | Canal de notificación del gestor de casos. |
-| `VIGILIA_DB` | Ruta del archivo SQLite (opcional). |
+| `VIGILIA_MODE=production` | Desactiva fixtures y requiere PostgreSQL. |
+| `DATABASE_URL` | Conexión PostgreSQL. Las migraciones pendientes se aplican al iniciar. |
+| `OIDC_DISCOVERY_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | Inicio de sesión OIDC. Registra `/auth/callback` como URL de retorno, o configura `OIDC_REDIRECT_URL`. |
+| `VIGILIA_BOOTSTRAP_ADMIN_EMAIL` | Correo verificado que aprovisiona de manera controlada el primer perfil administrador al iniciar sesión. |
+| `VIGILIA_SESSION_SECRET` | Secreto aleatorio de al menos 32 caracteres para firmar sesiones. |
+| `VIGILIA_SECRET_ENCRYPTION_KEY` | Clave Fernet para cifrar secretos de conectores almacenados en PostgreSQL. Conserva una copia recuperable en el gestor de secretos. |
+| `VIGILIA_CORS_ORIGINS` | Lista separada por comas de los orígenes web autorizados. |
+| `OIDC_FRONTEND_ORIGIN` | Origen al que vuelve el usuario después de OIDC. También se permite por CORS. |
+| `VIGILIA_SESSION_SAME_SITE` | `lax` para el mismo sitio; `none` si frontend y API son de sitios distintos. `none` usa cookie Secure. |
+| `VIGILIA_AI_PROVIDER=none` | Mantiene desactivada la IA externa. Usa `kev`, `jev` o `groq` solo tras aprobación documentada. |
+| `VIGILIA_AI_APPROVED=false` | El backend ignora un proveedor externo en producción mientras siga en `false`. |
 
-Si no se definen las variables de Slack, las notificaciones se simulan por consola.
+Para servir frontend y API en dominios distintos, define también `VITE_API_BASE_URL` durante la compilación, agrega el origen del frontend a `VIGILIA_CORS_ORIGINS` y configura `VIGILIA_SESSION_SAME_SITE=none`. Si se usa proxy inverso de mismo origen, deja `VITE_API_BASE_URL` vacío.
 
-### Pruebas
+El formulario humano de ingresos está desactivado en la UI hasta que el despliegue defina `VITE_LIVE_INGRESS_ENABLED=true`; además, el backend exige el permiso `ingress.submit`. El webhook de sistemas no depende de esa opción.
 
-```bash
-cd backend
-pytest
+El administrador inicial debe autenticarse con OIDC y tener el correo verificado exacto configurado en `VIGILIA_BOOTSTRAP_ADMIN_EMAIL`. Después administra en Vigilia los perfiles de identidades existentes en el IdP. No se crean contraseñas locales.
+
+Consulta [contratos e integraciones](backend/docs/contratos.md) y [operación, respaldo y restauración](backend/docs/operaciones-produccion.md) antes de configurar un piloto.
+
+## Permisos
+
+El catálogo es fijo y el backend lo valida en cada operación:
+
+| Permiso | Capacidad |
+|---|---|
+| `users.manage` | Usuarios, roles y permisos |
+| `integrations.manage` | Conectores, credenciales y pruebas |
+| `ingress.submit` | Registrar un ingreso desde Vigilia |
+| `ingress.read` | Consultar actividad y detalle |
+| `classification.review` | Resolver sugerencias pendientes |
+| `audit.read` | Consultar auditoría |
+
+Los roles son grupos iniciales de permisos; las asignaciones efectivas se guardan expresamente. Desactivar una persona bloquea nuevos accesos y conserva auditoría.
+
+## Estructura
+
+```text
+backend/
+  app/                 FastAPI, conectores, OIDC y reglas
+  migrations/          Migraciones PostgreSQL
+  docs/                Contratos y operación
+src/
+  components/          Interfaz y panel administrativo
+  lib/                 Clientes de API
 ```
-
-## Despliegue
-
-Comando de inicio: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, con `backend` como directorio raíz del servicio y las variables de entorno configuradas en la plataforma. La base de datos se recrea con datos de prueba en cada arranque.
-
-## Estructura del repositorio
-
-```
-.
-├── README.md
-└── backend/
-    ├── app/
-    │   ├── main.py        # rutas y orquestación del flujo
-    │   ├── schemas.py     # contrato de datos
-    │   ├── rules.py       # reglas exactas y decisión final
-    │   ├── agent.py       # agente de IA
-    │   ├── notifier.py    # notificaciones en paralelo
-    │   ├── db.py          # conexión y tablas
-    │   └── seed.py        # datos de prueba
-    ├── docs/contratos.md
-    ├── tests/
-    └── requirements.txt
-```
-
-## Alcance y consideraciones
-
-- Todos los datos de asegurados, pólizas y preexistencias son **ficticios**, generados para la demostración.
-- Los canales de notificación son intercambiables: en un entorno real, admisiones se integraría con el sistema del hospital y el gestor de casos con el CRM de la aseguradora.
-- Las claves y credenciales se gestionan únicamente mediante variables de entorno; nunca se incluyen en el repositorio.
-
-## Equipo
-
-Isaac Muñoz y Rubén Pino.

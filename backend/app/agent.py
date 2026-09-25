@@ -1,9 +1,9 @@
 """Clasificación administrativa opcional y mensajes deterministas.
 
-Kev sigue siendo el proveedor predeterminado local. Groq se puede seleccionar
-explícitamente para conservar la integración publicada; ambas salidas son
-solo sugerencias y siempre requieren revisión humana. Si un proveedor falla,
-el sistema deja la clasificación pendiente en vez de afirmar que no hay relación.
+El proveedor por defecto es ``none``. Kev, Jev o Groq se seleccionan de forma
+explícita; en producción también requieren aprobación. Sus resultados son
+sugerencias que se revisan por una persona; si un proveedor falla, la
+clasificación queda pendiente en vez de afirmar que no hay relación.
 """
 from __future__ import annotations
 
@@ -504,7 +504,11 @@ async def relacionar_preexistencias(
         _clean_text(item.get("condicion") or "Antecedente sin descripción", 200)
         for item in preexistencias
     ]
-    provider = os.getenv("VIGILIA_AI_PROVIDER", "kev").strip().casefold()
+    provider = os.getenv("VIGILIA_AI_PROVIDER", "none").strip().casefold()
+    from .db import database_mode
+
+    if database_mode() == "production" and os.getenv("VIGILIA_AI_APPROVED", "false").strip().casefold() != "true":
+        provider = "none"
 
     if provider == "kev":
         config = _kev_endpoint()
@@ -554,22 +558,20 @@ async def redactar_mensajes(
     rel: list[PreexistenciaRelacionada],
 ) -> Mensajes:
     """Crea avisos distintos mediante plantillas, sin generación libre de texto."""
-    quien = nombre or f"cédula {ev.cedula}"
-    estado_poliza = "sin póliza confirmada" if poliza is None else (
+    estado_poliza = "consulta pendiente" if poliza is None else (
         "póliza vigente" if poliza.vigente else "vigencia por revisar"
     )
     pendientes = sum("pendiente" in item.justificacion.casefold() for item in rel)
     relacionadas = sum(item.relacion in {"DIRECTA", "POSIBLE"} for item in rel)
 
     admisiones = (
-        f"[{nivel}] Ingreso {_slack_text(ev.evento_id, 40)}: {_slack_text(quien, 80)} ingresó a "
-        f"{_slack_text(ev.hospital, 80)} por «{_slack_text(ev.motivo_ingreso, 200)}». "
-        f"{estado_poliza}; veredicto administrativo: {veredicto}. "
+        f"[{nivel}] Ingreso {_slack_text(ev.evento_id, 40)}. {estado_poliza}; "
+        f"veredicto administrativo: {veredicto}. Consulte el detalle en Vigilia. "
         "Continúe la atención de emergencia con normalidad; esta alerta no decide cobertura."
     )
     gestor = (
-        f"[{nivel}] Revisar el ingreso {_slack_text(ev.evento_id, 40)} de {_slack_text(quien, 80)}. "
-        f"Veredicto: {veredicto}; relaciones orientativas: {relacionadas}; "
+        f"[{nivel}] Revisar el ingreso {_slack_text(ev.evento_id, 40)} en Vigilia. "
+        f"Veredicto: {veredicto}; sugerencias orientativas: {relacionadas}; "
         f"clasificaciones pendientes: {pendientes}. Confirmar la información con el expediente. "
         "La decisión final corresponde al equipo responsable."
     )
