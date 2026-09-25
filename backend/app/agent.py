@@ -269,7 +269,12 @@ def _jev_timeout() -> float:
 def _jev_zdr_route_confirmed(payload: object) -> bool:
     if not isinstance(payload, dict):
         return False
-    provider_metadata = payload.get("providerMetadata")
+    # The HTTP Evaluation API serializes this key as snake_case. Accept the
+    # camelCase AI SDK form as well so both documented response shapes remain
+    # auditable if the transport changes.
+    provider_metadata = payload.get("provider_metadata")
+    if not isinstance(provider_metadata, dict):
+        provider_metadata = payload.get("providerMetadata")
     if not isinstance(provider_metadata, dict):
         return False
     gateway = provider_metadata.get("gateway")

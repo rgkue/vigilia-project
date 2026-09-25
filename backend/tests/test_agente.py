@@ -53,13 +53,13 @@ class AgentCompatibilityTests(unittest.TestCase):
     def test_no_antecedentes_devuelve_lista_vacia(self):
         self.assertEqual(correr("Dolor torácico", preexistencias=[]), [])
 
-    def test_mensajes_escapan_menciones_y_enlaces(self):
+    def test_mensajes_omiten_texto_libre_del_evento(self):
         event = ev("<!channel> <https://unsafe.example|abrir>")
         messages = asyncio.run(agent.redactar_mensajes(event, "Ana", None, "NO_ENCONTRADO", "MEDIO", []))
         content = messages.admisiones + messages.gestor
         self.assertNotIn("<!channel>", content)
         self.assertNotIn("<https://", content)
-        self.assertIn("&lt;!channel&gt;", content)
+        self.assertNotIn("unsafe.example", content)
 
 
 if __name__ == "__main__":

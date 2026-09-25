@@ -156,7 +156,7 @@ class JevAdapterTests(unittest.TestCase):
     @staticmethod
     def zdr_route_metadata(final_provider="typesafe-ai", planning_reasoning="ZDR requested: 1 attempt → 1 ZDR attempt."):
         return {
-            "providerMetadata": {
+            "provider_metadata": {
                 "gateway": {
                     "routing": {
                         "finalProvider": final_provider,
@@ -166,7 +166,7 @@ class JevAdapterTests(unittest.TestCase):
             }
         }
 
-    def test_respuesta_valida_exige_zdr_y_minimiza_datos(self):
+    def test_respuesta_http_snake_case_exige_zdr_y_minimiza_datos(self):
         calls = []
         payload = {**self.zdr_route_metadata(), "answers": {
             "antecedente_1": {"choice": "POSIBLE", "probabilities": {"POSIBLE": 0.91}},
@@ -375,7 +375,7 @@ class GroqAdapterTests(unittest.TestCase):
 
 
 class SlackMessageTests(unittest.TestCase):
-    def test_external_mentions_and_links_are_escaped(self):
+    def test_external_mentions_and_links_are_not_included_in_templates(self):
         malicious_event = evento().model_copy(update={
             "motivo_ingreso": "<!channel> <https://example.test|abrir>",
         })
@@ -393,8 +393,8 @@ class SlackMessageTests(unittest.TestCase):
         self.assertNotIn("<!channel>", combined)
         self.assertNotIn("<@everyone>", combined)
         self.assertNotIn("<https://", combined)
-        self.assertIn("&lt;!channel&gt;", combined)
-        self.assertIn("&lt;https://example.test|abrir&gt;", combined)
+        self.assertNotIn("example.test", combined)
+        self.assertNotIn("Paciente", combined)
 
 
 if __name__ == "__main__":
