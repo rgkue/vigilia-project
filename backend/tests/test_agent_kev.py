@@ -137,6 +137,83 @@ class KevAdapterTests(unittest.TestCase):
             self.assertTrue(all("Revisión humana pendiente:" in item.justificacion for item in results))
 
 
+class JevAdapterTests(unittest.TestCase):
+    def run_agent(self, preexistencias=PREEXISTENCIAS):
+        return asyncio.run(agent.relacionar_preexistencias(evento(), preexistencias))
+
+    @staticmethod
+    def environment(**overrides):
+        environment = {
+            "VIGILIA_AI_PROVIDER": "jev",
+            "AI_GATEWAY_API_KEY": "test-only-key",
+            "KEV_MIN_PROBABILITY": "0.75",
+            "JEV_TIMEOUT_SECONDS": "8",
+            "VIGILIA_RULES_FALLBACK": "false",
+        }
+        environment.update(overrides)
+        return environment
+
+    def test_respuesta_valida_exige_zdr_y_minimiza_datos(self):
+        calls = []
+        payload = {"answers": {
+            "antecedente_1": {"choice": "POSIBLE", "probabilities": {"POSIBLE": 0.91}},
+            "antecedente_2": {"choice": "NINGUNA", "probabilities": {"NINGUNA": 0.88}},
+        }}
+        with patch.dict(os.environ, self.environment(), clear=False), patch.object(
+            agent.httpx, "AsyncClient", cliente_falso(payload, calls=calls)
+        ):
+            results = self.run_agent()
+
+        self.assertEqual([item.relacion for item in results], ["POSIBLE", "NINGUNA"])
+        self.assertTrue(all(item.justificacion.startswith("Jev sugiere") for item in results))
+        sent = calls[0]["body"]
+        self.assertEqual(calls[0]["url"], agent.JEV_URL)
+        self.assertEqual(sent["model"], agent.JEV_MODEL)
+        self.assertEqual(sent["providerOptions"], {"gateway": {"zeroDataRetention": True}})
+        self.assertEqual(sent["state"], {
+            "motivo_ingreso": "Dolor torácico opresivo",
+            "antecedente_1": "Hipertensión arterial",
+            "antecedente_2": "Diabetes mellitus tipo 2",
+        })
+        self.assertNotIn("8-400-400", json.dumps(sent, ensure_ascii=False))
+        self.assertNotIn("Hospital ficticio", json.dumps(sent, ensure_ascii=False))
+        self.assertEqual(calls[0]["headers"]["Authorization"], "Bearer test-only-key")
+
+    def test_sin_clave_no_llama_y_queda_pendiente(self):
+        calls = []
+        with patch.dict(os.environ, self.environment(AI_GATEWAY_API_KEY=""), clear=False), patch.object(
+            agent.httpx, "AsyncClient", cliente_falso({"answers": {}}, calls=calls)
+        ):
+            results = self.run_agent()
+
+        self.assertEqual(calls, [])
+        self.assertTrue(all(item.justificacion.startswith("Revisión humana pendiente:") for item in results))
+
+    def test_baja_probabilidad_queda_pendiente(self):
+        payload = {"answers": {
+            "antecedente_1": {"choice": "POSIBLE", "probabilities": {"POSIBLE": 0.74}},
+            "antecedente_2": {"choice": "NINGUNA", "probabilities": {"NINGUNA": 0.99}},
+        }}
+        with patch.dict(os.environ, self.environment(), clear=False), patch.object(
+            agent.httpx, "AsyncClient", cliente_falso(payload)
+        ):
+            results = self.run_agent()
+
+        self.assertEqual(results[0].relacion, "NINGUNA")
+        self.assertIn("no alcanzó el umbral", results[0].justificacion)
+        self.assertEqual(results[1].relacion, "NINGUNA")
+        self.assertTrue(results[1].justificacion.startswith("Jev sugiere ninguna"))
+
+    def test_respuesta_malformada_o_error_de_red_quedan_pendientes(self):
+        for payload, error in (({"unexpected": True}, None), (None, httpx.ConnectError("offline"))):
+            with self.subTest(error=error), patch.dict(os.environ, self.environment(), clear=False), patch.object(
+                agent.httpx, "AsyncClient", cliente_falso(payload, error=error)
+            ):
+                results = self.run_agent()
+            self.assertEqual(len(results), 2)
+            self.assertTrue(all(item.justificacion.startswith("Revisión humana pendiente:") for item in results))
+
+
 class GroqAdapterTests(unittest.TestCase):
     def run_agent(self, preexistencias=PREEXISTENCIAS):
         return asyncio.run(agent.relacionar_preexistencias(evento(), preexistencias))

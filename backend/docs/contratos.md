@@ -25,7 +25,7 @@ La API conserva relacion como DIRECTA | POSIBLE | NINGUNA. Cuando una clasificac
 ## Responsabilidades
 
 - rules.py verifica vigencia, pago y carencia, y determina el veredicto administrativo.
-- agent.py usa Kev por defecto o Groq cuando VIGILIA_AI_PROVIDER=groq. El modelo predeterminado de Groq es openai/gpt-oss-120b. El proveedor se selecciona explícitamente; no hay envío automático a un segundo servicio.
+- agent.py usa Kev por defecto, Groq con `VIGILIA_AI_PROVIDER=groq`, o Jev con `VIGILIA_AI_PROVIDER=jev`. Groq usa por defecto `openai/gpt-oss-120b`. Jev usa `AI_GATEWAY_API_KEY` y exige retención cero (ZDR) en AI Gateway para el flujo de ingresos reales. El proveedor se selecciona explícitamente; no hay envío automático a un segundo servicio.
 - Las sugerencias de IA o reglas requieren revisión humana. Si el proveedor falla, la relación queda pendiente; las reglas remotas pueden dar una pista opcional pero no confirman una clasificación.
 - agent.py redacta los dos avisos con plantillas deterministas.
 - notifier.py simula notificaciones en log salvo que Slack se active expresamente en el entorno privado.

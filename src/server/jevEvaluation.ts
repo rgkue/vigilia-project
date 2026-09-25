@@ -83,7 +83,6 @@ async function classifyCase(caseId: string): Promise<JevEvaluation> {
     providerOptions: {
       gateway: {
         disallowPromptTraining: true,
-        zeroDataRetention: true,
       },
     },
     maxRetries: 0,

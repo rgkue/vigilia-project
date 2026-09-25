@@ -105,7 +105,9 @@ function normalizeClassifications(items: JsonRecord[]): ClassificationResult[] {
         ? "kev"
         : /^Groq sugiere\b/i.test(explanation) || /\bGroq\b/i.test(explanation)
           ? "groq"
-          : "backend",
+          : /^Jev sugiere\b/i.test(explanation) || /\bJev\b/i.test(explanation)
+            ? "jev"
+            : "backend",
       reviewRequired: true,
     };
   });

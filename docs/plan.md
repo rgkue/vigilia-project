@@ -11,7 +11,7 @@ El dashboard interno del equipo indica como plazo el **viernes 25 de septiembre 
 ## Estado actual
 
 - **Frontend en React:** creado desde la raíz del proyecto, con interfaz de vidrio esmerilado, seis escenarios sintéticos alineados con los fixtures, indicador de conexión y sección actualizable de los diez ingresos recientes. Cada entrada del historial abre su respuesta completa. Las clasificaciones del backend se muestran por antecedente usando el mismo tipo interno que Jev; la incertidumbre queda visible como revisión pendiente. Los controles se adaptan a móvil.
-- **Experimento Jev:** añadidos `ai` y una ruta Node de Vercel AI Gateway con AI SDK `experimental_evaluate`, además de middleware local para `pnpm dev`. Solo admite `vig-demo-01` y `vig-demo-04`; el resultado es independiente de la decisión administrativa y exige revisión humana. La ruta comprobó `configured: false`; no se hizo ninguna llamada al modelo porque falta configurar la clave local.
+- **Jev:** integrado como experimento sintético con AI SDK y como proveedor opcional de FastAPI. Kev sigue predeterminado; Jev solo se elige con `VIGILIA_AI_PROVIDER=jev`, exige `AI_GATEWAY_API_KEY` y ZDR para datos del flujo real, minimiza el estado enviado y falla cerrada si el Gateway rechaza la solicitud. El simulador acepta solo `vig-demo-01` y `vig-demo-04`; las cuatro llamadas recientes pasaron y fueron repetibles con la opción de no entrenamiento. ZDR devolvió 403 con la cuenta actual, por lo que no se debe activar Jev en ingresos reales todavía.
 - **Contrato de clasificación de la interfaz:** Jev y las respuestas de FastAPI se normalizan a `condition`, `relation`, `probability`, `explanation`, `source` y `reviewRequired`. `PENDIENTE` es interno de la interfaz; el esquema público conserva `DIRECTA`, `POSIBLE` y `NINGUNA`.
 - **Contrato frontend/API:** adaptado a `backend/app/schemas.py` y `backend/docs/contratos.md`; usa `POST /webhook/ingreso`.
 - **Sincronización del backend:** El commit remoto `f6c4164` se integró como base. El commit local de sincronización combina el backend Kev predeterminado con Groq explícito y las reglas remotas como pistas optativas. Conserva el contrato público; todas las sugerencias requieren revisión, sin failover automático ni elevación a prioridad alta por una relación directa pendiente. La UI reconoce Jev, Kev y Groq como orígenes distintos.
@@ -34,7 +34,7 @@ El botón de la demo y los datos sintéticos permiten recorrer el flujo visual s
 
 ## Siguientes pasos
 
-1. **Probar Jev cuando esté configurado.** El endpoint informó que falta la clave. Si se decide probarlo, introdúcela directamente en `.env.local`, reinicia Vite y evalúa solo `vig-demo-01` y `vig-demo-04`; confirma primero el precio del modelo en AI Gateway.
+1. **Resolver acceso ZDR antes de activar Jev en el backend.** Confirmar la disponibilidad de ZDR en el equipo AI Gateway, volver a probar el adaptador Python con casos ficticios y validar el proveedor de ruta efectiva. No enviar ingresos reales mientras ZDR no funcione.
 2. **Probar un proveedor real solo con autorización y datos sintéticos.** Kev o Groq se activa desde la configuración privada del backend; el equipo elige uno expresamente, configura su clave localmente y revisa las respuestas de los seis fixtures.
 3. **Preparar una fase posterior de entrega.** Acordar el despliegue del frontend de producto y validar el flujo con la API publicada. No desplegar desde `vigilia-panel/` ni activar Firebase hasta completar esa revisión.
 
@@ -42,4 +42,4 @@ El botón de la demo y los datos sintéticos permiten recorrer el flujo visual s
 
 El hito local está listo: React y FastAPI funcionan juntos en loopback, los seis casos aparecen en el historial persistido, ambos avisos se simulan por `log` y las clasificaciones inciertas quedan para revisión humana. Jev continúa pendiente de una clave local; no bloquea la demo administrativa.
 
-La llamada Jev debe tratarse como una comparación experimental separada; no es requisito para cerrar el flujo administrativo ni se considerará validada hasta guardar y revisar los resultados de ambos casos sintéticos.
+La llamada Jev del simulador está validada técnicamente con cuatro evaluaciones sintéticas estables, pero no acredita exactitud clínica ni habilita su uso con datos reales. El proveedor del backend requiere ZDR y su acceso sigue pendiente.

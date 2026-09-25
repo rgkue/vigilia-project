@@ -199,24 +199,20 @@ function ResultPanel({ result, pending, emptyDescription, simulator = false }: {
         </div>
           <div className="verificationTile">
             <div className="tileTop"><Icon name="overview" size={16} /><span>Preexistencias</span></div>
-            <strong>{!simulator && result.classifications.length > 0 ? "Revisión pendiente" : preexistingLabel(result.preexisting)}</strong>
-            <p>{!simulator && result.classifications.length > 0 ? "La clasificación automatizada requiere confirmación del equipo responsable." : result.preexisting.explanation}</p>
-            {simulator && result.classifications.length > 0 && (
+            <strong>{preexistingLabel(result.preexisting)}</strong>
+            <p>{result.preexisting.explanation}</p>
+            {result.classifications.length > 0 && (
               <ul className="classificationList" aria-label="Clasificación por antecedente">
                 {result.classifications.map((classification) => (
                   <li key={classification.condition}>
                     <div className="classificationLine"><strong>{classification.condition}</strong><span>{classificationLabel(classification)}</span></div>
                     <p>{classification.explanation}</p>
                     <small>
-                      {simulator && classification.source === "kev"
-                        ? classification.relation === "PENDIENTE"
-                          ? "Kev sin clasificación confirmada · revisión humana"
-                          : "Kev · sugerencia · revisión humana"
-                        : simulator && classification.source === "groq"
-                          ? classification.relation === "PENDIENTE"
-                            ? "Groq sin clasificación confirmada · revisión humana"
-                            : "Groq · sugerencia · revisión humana"
-                          : "Backend · revisión humana"}
+                      {classification.source === "backend"
+                        ? "Backend · revisión humana"
+                        : classification.relation === "PENDIENTE"
+                          ? `${classification.source === "kev" ? "Kev" : classification.source === "groq" ? "Groq" : "Jev"} sin clasificación confirmada · revisión humana`
+                          : `${classification.source === "kev" ? "Kev" : classification.source === "groq" ? "Groq" : "Jev"} · sugerencia · revisión humana`}
                       {classification.probability === null ? "" : ` · Probabilidad: ${Math.round(classification.probability * 100)}%`}
                     </small>
                   </li>
