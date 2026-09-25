@@ -1,36 +1,46 @@
 # Contrato de Vigilia
 
-Fuente de verdad: `app/schemas.py`. Cualquier cambio se acuerda entre Isaac y Rubén.
+Fuente de verdad: app/schemas.py. La integración conserva las rutas y los campos públicos del backend de BillieJSON.
 
-## Entrada: `POST /webhook/ingreso`
-```json
-{
-  "evento_id": "ING-0001",
-  "cedula": "8-400-400",
-  "hospital": "Hospital Punta Pacífica",
-  "motivo_ingreso": "Dolor torácico opresivo",
-  "triage": 2,
-  "fecha_ingreso": "2026-09-24T14:32:00-05:00"
-}
-```
+## Entrada: POST /webhook/ingreso
+
+    {
+      "evento_id": "ING-0001",
+      "cedula": "8-400-400",
+      "hospital": "Hospital Punta Pacífica",
+      "motivo_ingreso": "Dolor torácico opresivo",
+      "triage": 2,
+      "fecha_ingreso": "2026-09-24T14:32:00-05:00"
+    }
 
 ## Salida
-`veredicto`: `VALIDA` | `VALIDA_CON_ALERTAS` | `NO_VALIDA` | `NO_ENCONTRADO`
-`nivel_alerta`: `BAJO` | `MEDIO` | `ALTO`
-Además: `poliza`, `preexistencias` (con `relacion` DIRECTA/POSIBLE/NINGUNA y justificación), `mensaje_admisiones`, `mensaje_gestor` y `notificaciones` (una por destino).
 
-## Reparto de responsabilidades
-- **Código exacto** (`rules.py`): vigencia, pago, carencia y decisión final.
-- **IA** (`agent.py`): relación entre el motivo de ingreso y las preexistencias, y redacción de los dos mensajes.
+veredicto: VALIDA | VALIDA_CON_ALERTAS | NO_VALIDA | NO_ENCONTRADO
+nivel_alerta: BAJO | MEDIO | ALTO
 
-## Casos de prueba (cédulas del seed)
-| Cédula | Situación | Veredicto |
+La respuesta también incluye poliza, preexistencias (condicion, relacion y justificacion), mensaje_admisiones, mensaje_gestor y notificaciones (destino, canal y estado).
+
+La API conserva relacion como DIRECTA | POSIBLE | NINGUNA. Cuando una clasificación no se confirma, devuelve NINGUNA junto con el prefijo Revisión humana pendiente:; la UI convierte esa combinación en PENDIENTE. No se añade un valor nuevo al enum público.
+
+## Responsabilidades
+
+- rules.py verifica vigencia, pago y carencia, y determina el veredicto administrativo.
+- agent.py usa Kev por defecto o Groq cuando VIGILIA_AI_PROVIDER=groq. El modelo predeterminado de Groq es openai/gpt-oss-120b. El proveedor se selecciona explícitamente; no hay envío automático a un segundo servicio.
+- Las sugerencias de IA o reglas requieren revisión humana. Si el proveedor falla, la relación queda pendiente; las reglas remotas pueden dar una pista opcional pero no confirman una clasificación.
+- agent.py redacta los dos avisos con plantillas deterministas.
+- notifier.py simula notificaciones en log salvo que Slack se active expresamente en el entorno privado.
+
+La alerta es administrativa. La atención del paciente nunca debe retrasarse.
+
+## Casos de muestra
+
+| Cédula | Situación | Resultado con Kev apagado |
 |---|---|---|
-| 8-100-100 | Todo en orden | VALIDA |
+| 8-100-100 | Póliza vigente; asma registrada | VALIDA_CON_ALERTAS por clasificación pendiente |
 | 8-200-200 | Póliza vencida | NO_VALIDA |
-| 8-300-300 | En período de carencia | VALIDA_CON_ALERTAS |
-| 8-400-400 | Hipertensión y diabetes (con motivo cardíaco: relación DIRECTA/POSIBLE, requiere el agente) | VALIDA_CON_ALERTAS |
+| 8-300-300 | Póliza en período de carencia | VALIDA_CON_ALERTAS |
+| 8-400-400 | Hipertensión y diabetes | VALIDA_CON_ALERTAS por clasificación pendiente |
 | 8-500-500 | Pago atrasado | VALIDA_CON_ALERTAS |
-| 9-999-999 | No existe | NO_ENCONTRADO |
+| 9-999-999 | Asegurado no registrado | NO_ENCONTRADO |
 
-> La validación es administrativa: el paciente se atiende siempre.
+Las fechas de los fixtures son relativas a la fecha en que se inicializa SQLite.

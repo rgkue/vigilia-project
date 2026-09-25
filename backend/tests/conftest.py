@@ -1,7 +1,16 @@
+"""Valores seguros para tests pytest: SQLite temporal y proveedores apagados."""
 import os
 import tempfile
+from pathlib import Path
 
-# Entorno de pruebas: nunca escribir en Slack ni llamar al modelo real.
-os.environ["VIGILIA_DB"] = os.path.join(tempfile.mkdtemp(), "t.db")
-for k in ("VIGILIA_KEY", "SLACK_WEBHOOK_ADMISIONES", "SLACK_WEBHOOK_GESTOR", "GROQ_API_KEY"):
-    os.environ[k] = ""
+TEST_DIRECTORY = tempfile.TemporaryDirectory(prefix="vigilia-pytest-")
+os.environ.__setitem__("VIGILIA_DB", str(Path(TEST_DIRECTORY.name) / "vigilia-pytest.db"))
+os.environ.__setitem__("VIGILIA_KEY", "")
+os.environ.__setitem__("VIGILIA_AI_PROVIDER", "kev")
+os.environ.__setitem__("VIGILIA_RULES_FALLBACK", "false")
+os.environ.__setitem__("KEV_API_URL", "")
+os.environ.__setitem__("KEV_API_KEY", "")
+os.environ.__setitem__("GROQ_API_KEY", "")
+os.environ.__setitem__("SLACK_ENABLED", "false")
+os.environ.__setitem__("SLACK_WEBHOOK_ADMISIONES", "")
+os.environ.__setitem__("SLACK_WEBHOOK_GESTOR", "")

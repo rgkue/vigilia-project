@@ -1,3 +1,1 @@
-from dotenv import load_dotenv
-
-load_dotenv()
+"""Componentes del backend de Vigilia."""

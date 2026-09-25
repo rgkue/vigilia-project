@@ -1,18 +1,19 @@
-"""Datos de prueba. Las fechas son relativas a hoy para que la demo funcione siempre."""
+"""Datos de prueba sintéticos; sus fechas relativas mantienen vigente la demo."""
 from datetime import date, timedelta
 
 
-def _d(dias: int) -> str:
-    return (date.today() + timedelta(days=dias)).isoformat()
+def _d(days: int) -> str:
+    return (date.today() + timedelta(days=days)).isoformat()
 
 
 ASEGURADOS = [
-    ("8-100-100", "Ana Pérez"),        # caso 1: todo en orden
-    ("8-200-200", "Carlos Gómez"),     # caso 2: póliza vencida
-    ("8-300-300", "Lucía Ríos"),       # caso 3: en período de carencia
-    ("8-400-400", "Miguel Torres"),    # caso 4: preexistencias relacionadas
-    ("8-500-500", "Sofía Vega"),       # caso 5: pago atrasado
+    ("8-100-100", "Ana Pérez"),
+    ("8-200-200", "Carlos Gómez"),
+    ("8-300-300", "Lucía Ríos"),
+    ("8-400-400", "Miguel Torres"),
+    ("8-500-500", "Sofía Vega"),
 ]
+
 # numero, cedula, plan, vigente_desde, vigente_hasta, estado_pago, carencia_dias
 POLIZAS = [
     ("POL-1001", "8-100-100", "Plan Integral", _d(-400), _d(300), "AL_DIA", 30),
@@ -21,6 +22,7 @@ POLIZAS = [
     ("POL-1004", "8-400-400", "Plan Premium", _d(-900), _d(200), "AL_DIA", 30),
     ("POL-1005", "8-500-500", "Plan Básico", _d(-300), _d(60), "MOROSO", 30),
 ]
+
 # cedula, condicion, fecha_diagnostico
 PREEXISTENCIAS = [
     ("8-100-100", "Asma leve", "2019-05-01"),
@@ -29,7 +31,10 @@ PREEXISTENCIAS = [
 ]
 
 
-def cargar_seed(c) -> None:
-    c.executemany("INSERT INTO asegurados VALUES (?, ?)", ASEGURADOS)
-    c.executemany("INSERT INTO polizas VALUES (?, ?, ?, ?, ?, ?, ?)", POLIZAS)
-    c.executemany("INSERT INTO preexistencias (cedula, condicion, fecha_diagnostico) VALUES (?, ?, ?)", PREEXISTENCIAS)
+def cargar_seed(connection) -> None:
+    connection.executemany("INSERT INTO asegurados VALUES (?, ?)", ASEGURADOS)
+    connection.executemany("INSERT INTO polizas VALUES (?, ?, ?, ?, ?, ?, ?)", POLIZAS)
+    connection.executemany(
+        "INSERT INTO preexistencias (cedula, condicion, fecha_diagnostico) VALUES (?, ?, ?)",
+        PREEXISTENCIAS,
+    )

@@ -1,10 +1,11 @@
+"""SQLite local para datos ficticios de la demo."""
 import os
 import sqlite3
 from contextlib import contextmanager
 
 from .seed import cargar_seed
 
-DB_PATH = os.getenv("VIGILIA_DB", "vigilia.db")
+DB_PATH = os.getenv("VIGILIA_DB") or "vigilia.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS asegurados (cedula TEXT PRIMARY KEY, nombre TEXT NOT NULL);
@@ -24,17 +25,17 @@ CREATE TABLE IF NOT EXISTS notificaciones (
 
 @contextmanager
 def conexion():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
     try:
-        yield conn
-        conn.commit()
+        yield connection
+        connection.commit()
     finally:
-        conn.close()
+        connection.close()
 
 
 def init_db() -> None:
-    with conexion() as c:
-        c.executescript(SCHEMA)
-        if c.execute("SELECT COUNT(*) FROM asegurados").fetchone()[0] == 0:
-            cargar_seed(c)
+    with conexion() as connection:
+        connection.executescript(SCHEMA)
+        if connection.execute("SELECT COUNT(*) FROM asegurados").fetchone()[0] == 0:
+            cargar_seed(connection)
