@@ -4,6 +4,8 @@ const parsedRepeats = Number.parseInt(process.env.JEV_BENCHMARK_REPEATS ?? "2", 
 const repeats = Number.isInteger(parsedRepeats) && parsedRepeats >= 1 && parsedRepeats <= 3
   ? parsedRepeats
   : 2;
+const expectedThreshold = 0.75;
+const allowedRelations = new Set(["DIRECTA", "POSIBLE", "NINGUNA", "PENDIENTE"]);
 
 const scenarios = [
   {
@@ -58,16 +60,41 @@ if (!statusResponse?.ok) {
         const payload = await response.json().catch(() => null);
         const suggestions = Array.isArray(payload?.suggestions) ? payload.suggestions : [];
         const relations = suggestions.map((item) => item?.relation);
+        const validThreshold = payload?.threshold === expectedThreshold;
+        const validSuggestions = suggestions.length > 0 && suggestions.every((item) => {
+          if (
+            typeof item?.condition !== "string"
+            || !allowedRelations.has(item?.relation)
+            || item?.source !== "jev"
+            || item?.reviewRequired !== true
+            || typeof item?.explanation !== "string"
+          ) return false;
+
+          if (item.probability === null) return item.relation === "PENDIENTE";
+          if (
+            typeof item.probability !== "number"
+            || !Number.isFinite(item.probability)
+            || item.probability < 0
+            || item.probability > 1
+          ) return false;
+
+          return item.relation === "PENDIENTE"
+            ? item.probability < expectedThreshold
+            : item.probability >= expectedThreshold;
+        });
         const validShape = payload?.model === "typesafe-ai/jev"
-          && suggestions.length > 0
-          && suggestions.every((item) => item?.source === "jev" && item?.reviewRequired === true);
+          && typeof payload?.note === "string"
+          && validThreshold
+          && validSuggestions;
         const meetsExpectation = validShape && scenario.accepts(relations);
         samples.get(scenario.caseId).push(relations);
         if (!meetsExpectation) failures += 1;
         logResult(
           meetsExpectation,
           `${scenario.caseId} muestra ${repeat}/${repeats}`,
-          validShape ? `relaciones ${relations.join(", ")}; criterio: ${scenario.expectation}` : "formato de respuesta no válido",
+          validShape
+            ? `relaciones ${relations.join(", ")}; umbral 75% y revisión humana validados; criterio: ${scenario.expectation}`
+            : "formato, probabilidad, umbral o revisión humana no válidos",
         );
       }
     }
