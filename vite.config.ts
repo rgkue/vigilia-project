@@ -21,10 +21,10 @@ export default defineConfig(({ mode }) => {
               chunks.push(typeof chunk === "string" ? new TextEncoder().encode(chunk) : chunk);
             }
             const rawBody = new TextDecoder().decode(Buffer.concat(chunks));
-            const requestOrigin = typeof request.headers.origin === "string"
-              ? request.headers.origin
-              : `http://${request.headers.host ?? "localhost:5173"}`;
-            const localRequest = new Request(`${requestOrigin}/api/jev`, {
+            const requestHost = typeof request.headers.host === "string"
+              ? request.headers.host
+              : "localhost:5173";
+            const localRequest = new Request(`http://${requestHost}/api/jev`, {
               method: request.method ?? "GET",
               headers: {
                 ...(typeof request.headers.origin === "string" ? { origin: request.headers.origin } : {}),
