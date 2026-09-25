@@ -101,4 +101,12 @@ El benchmark No Training volvió a ejecutar ocho llamadas: 8/8 pasaron, con prov
 
 La suite completa de backend pasó después de corregir el descodificador de metadata HTTP y declarar `itsdangerous`, que Starlette necesita para `SessionMiddleware`: 31 pruebas y 10 subcasos; quedan avisos deprecados de Starlette/Authlib y del adaptador datetime de SQLite. Dos pruebas antiguas de notificaciones se alinearon con el comportamiento actual —las plantillas omiten texto libre del paciente en lugar de escaparlo—. GitHub Actions ahora instala las dependencias del backend y ejecuta pytest además del build frontend.
 
+### Recomendación de uso — 25 de septiembre de 2026
+
+Una comprobación local adicional del fixture sintético `vig-demo-07` a través del AI SDK y No Training respondió HTTP 200: proveedor final `typesafe-ai`, clasificación `DIRECTA` con probabilidad 0.98 y revisión humana obligatoria. Es una validación de humo de un caso, junto con el benchmark repetido descrito arriba; no mide precisión clínica.
+
+Con el mismo fixture, el proceso aislado configurado para solicitar ZDR respondió HTTP 502 desde la ruta del SDK. Una petición HTTP directa equivalente a AI Gateway devolvió HTTP 403 `permission_denied`, sin proveedor final ni metadata de planificación. El transporte directo confirma el rechazo del Gateway y el wrapper oculta ese detalle; el resultado aún no permite separar una limitación del plan de la falta de una ruta ZDR elegible para Jev.
+
+Método recomendado hoy: usar `experimental_evaluate` del AI SDK únicamente en el simulador con fixtures sintéticos, desde una función de servidor, con proveedor TypeSafe fijado, No Training y revisión humana. Para el backend, mantener Kev como predeterminado y la ruta Jev detrás de selección explícita, con ZDR obligatorio y fallo cerrado; no enviarle ingresos reales hasta que el equipo confirme el acceso, una evaluación sintética de ese adaptador obtenga metadata ZDR válida y el responsable de privacidad apruebe el flujo. La salida de Jev es orientativa y no debe decidir cobertura ni atención.
+
 Estado operativo: No Training está probado con Jev usando datos ficticios; ZDR aún no. El backend conserva la política de fallar cerrada y no debe procesar ingresos reales con Jev hasta completar una llamada backend sintética que confirme ZDR en metadata y una revisión humana/de privacidad del sistema.
