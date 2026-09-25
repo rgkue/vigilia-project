@@ -25,16 +25,16 @@ function text(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
-function requestFailure(value: unknown, status: number, endpoint: string): Error {
+function requestFailure(status: number): Error {
   if (status === 401) {
-    return new Error(`El backend rechazó ${endpoint} (HTTP 401). Si VIGILIA_KEY está configurada, no la expongas en el frontend; se necesita una ruta pública acotada o un proxy seguro.`);
+    return new Error("El servicio no autorizó esta operación. Contacta al administrador si el problema continúa.");
   }
   if (status === 429) {
-    return new Error(`El backend limitó ${endpoint} (HTTP 429). Espera un minuto antes de volver a intentarlo.`);
+    return new Error("Se alcanzó el límite de solicitudes. Espera un momento antes de volver a intentarlo.");
   }
-  const payload = record(value);
-  const detail = text(payload.detail) ?? text(payload.message) ?? text(payload.error);
-  return new Error(detail ? `${detail} (HTTP ${status})` : `${endpoint} respondió HTTP ${status}.`);
+  return new Error(status >= 500
+    ? "El servicio tuvo un problema al procesar la solicitud. Inténtalo de nuevo más tarde."
+    : "No se pudo completar la solicitud. Revisa los datos e inténtalo de nuevo.");
 }
 
 function alertLevel(value: unknown): AlertLevel {
@@ -226,19 +226,19 @@ export async function loadIngressHistory(): Promise<AgentResponse[]> {
     const response = await fetch(`${apiBase}/ingresos?limite=10`, { signal: controller.signal });
     const body: unknown = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw requestFailure(body, response.status, "GET /ingresos");
+      throw requestFailure(response.status);
     }
-    if (!Array.isArray(body)) throw new Error("El historial devolvió un formato inesperado.");
+    if (!Array.isArray(body)) throw new Error("El servicio devolvió una respuesta inesperada. Contacta al administrador.");
     return body.map((item) => {
       const payload = record(item);
       return normalizeResponse(payload, text(payload.evento_id) ?? "EVENTO");
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("El historial tardó más de 10 segundos en responder.");
+      throw new Error("La consulta está tardando más de lo habitual. Inténtalo de nuevo.");
     }
     if (error instanceof TypeError) {
-      throw new BackendConnectionError("No se pudo cargar el historial. Comprueba la URL del backend y CORS.");
+      throw new BackendConnectionError("No se pudo conectar con el servicio. Inténtalo de nuevo más tarde.");
     }
     throw error instanceof Error ? error : new Error("No se pudo cargar el historial.");
   } finally {
@@ -246,12 +246,8 @@ export async function loadIngressHistory(): Promise<AgentResponse[]> {
   }
 }
 
-export async function processIngress(event: IngressEvent, demoCase: DemoCase): Promise<AgentResponse> {
-  if (!apiBase) {
-    await new Promise((resolve) => window.setTimeout(resolve, 420));
-    return makeLocalResult(event, demoCase);
-  }
-
+async function postIngress(event: IngressEvent): Promise<AgentResponse> {
+  if (!apiBase) throw new BackendConnectionError("El servicio de ingresos no está configurado.");
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 25_000);
   try {
@@ -264,18 +260,32 @@ export async function processIngress(event: IngressEvent, demoCase: DemoCase): P
     });
     const body: unknown = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw requestFailure(body, response.status, "POST /webhook/ingreso");
+      throw requestFailure(response.status);
     }
     return normalizeResponse(body, event.evento_id, event.fecha_ingreso);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("El servicio tardó más de 25 segundos. Revisa el estado antes de volver a enviar el evento.");
+      throw new Error("El servicio tardó demasiado en responder. Revisa la actividad antes de volver a enviar el evento.");
     }
     if (error instanceof TypeError) {
-      throw new BackendConnectionError("No se pudo conectar con el backend. Comprueba la URL y la configuración CORS.");
+      throw new BackendConnectionError("No se pudo conectar con el servicio. Inténtalo de nuevo más tarde.");
     }
     throw error instanceof Error ? error : new Error("No se pudo procesar el ingreso.");
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+/** Live intake never silently falls back to fabricated local records. */
+export function processIngress(event: IngressEvent): Promise<AgentResponse> {
+  return postIngress(event);
+}
+
+/** Synthetic scenarios may run locally, isolated from the client-facing workflow. */
+export async function processDemoIngress(event: IngressEvent, demoCase: DemoCase): Promise<AgentResponse> {
+  if (!apiBase) {
+    await new Promise((resolve) => window.setTimeout(resolve, 420));
+    return makeLocalResult(event, demoCase);
+  }
+  return postIngress(event);
 }

@@ -1,6 +1,0 @@
-{
-  "name": "vigilia-panel",
-  "private": true,
-  "type": "module",
-  "dependencies": { "@libsql/client": "^0.15.0" }
-}

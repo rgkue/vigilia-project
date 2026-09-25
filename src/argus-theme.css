@@ -1,0 +1,214 @@
+/* Argus Liquid Glass direction adapted for Vigilia's administrative workflow. */
+:root {
+  color-scheme: dark;
+  --text: #f5f5f7;
+  --secondary: rgba(235, 235, 245, .68);
+  --tertiary: rgba(235, 235, 245, .42);
+  --line-strong: rgba(255, 255, 255, .22);
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --surface: rgba(30, 30, 32, .68);
+  --surface-solid: #1c1c1e;
+  --surface-raised: rgba(48, 48, 52, .72);
+  --fill: rgba(118, 118, 128, .24);
+  --shadow: 0 22px 70px rgba(0, 0, 0, .34);
+}
+
+html { scroll-padding-top: 116px; }
+#overview, #simulate, #activity { scroll-margin-top: 116px; }
+body { background: #050506; color: #f5f5f7; }
+.appFrame {
+  display: block;
+  min-height: 100vh;
+  overflow: clip;
+  isolation: isolate;
+  background:
+    radial-gradient(900px 550px at 82% -12%, rgba(255, 255, 255, .085), transparent 62%),
+    radial-gradient(700px 580px at -12% 72%, rgba(118, 118, 128, .075), transparent 67%),
+    #050506;
+}
+.ambient { z-index: -1; opacity: .13; filter: blur(100px); }
+.ambientOne { background: radial-gradient(circle, rgba(255, 255, 255, .5), transparent 70%); }
+.ambientTwo { background: radial-gradient(circle, rgba(118, 118, 128, .4), transparent 70%); }
+.glassSurface {
+  border-color: var(--line);
+  background: rgba(30, 30, 32, .58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 18px 58px rgba(0, 0, 0, .25);
+  -webkit-backdrop-filter: blur(26px) saturate(145%);
+  backdrop-filter: blur(26px) saturate(145%);
+}
+.mainArea { width: min(1440px, 100%); padding: 116px clamp(18px, 4.2vw, 64px) 54px; }
+.topbar { min-height: 52px; border-radius: 18px; background: rgba(255, 255, 255, .055); }
+.crumbs { color: var(--tertiary); }
+.crumbs strong { color: var(--secondary); }
+.privacyBadge { border-color: var(--line); background: rgba(255, 255, 255, .035); color: var(--secondary); }
+.privacyBadge svg { color: var(--secondary); }
+
+.heroBlock { grid-template-columns: minmax(0, 1.12fr) minmax(320px, .88fr); gap: clamp(24px, 5vw, 68px); padding: clamp(42px, 6vw, 78px) 0 36px; }
+.heroCopy { position: relative; }
+.heroEyebrow { color: var(--secondary); }
+.pulseMark { background: var(--green); box-shadow: 0 0 0 4px rgba(141, 231, 189, .11), 0 0 15px rgba(141, 231, 189, .4); }
+h1 { max-width: 14ch; font-size: clamp(40px, 5.2vw, 70px); font-weight: 620; letter-spacing: -.075em; line-height: .99; }
+h1 em { color: var(--secondary); font-weight: 420; }
+.heroCopy > p { max-width: 58ch; margin-bottom: 0; color: var(--secondary); font-size: 15px; line-height: 1.8; }
+.heroPrinciple { display: flex; max-width: 590px; align-items: flex-start; gap: 10px; margin-top: 18px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, .045); }
+.heroPrinciple > span { display: grid; width: 29px; height: 29px; flex: none; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, .08); color: var(--secondary); }
+.heroPrinciple p { margin: 0; color: var(--secondary); font-size: 11px; line-height: 1.6; }
+.heroPrinciple strong { color: var(--text); font-weight: 620; }
+.heroFlow {
+  min-height: 170px;
+  gap: 13px;
+  padding: 24px 22px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(48, 48, 52, .65), rgba(28, 28, 30, .78));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .17), var(--shadow);
+  -webkit-backdrop-filter: blur(25px) saturate(145%);
+  backdrop-filter: blur(25px) saturate(145%);
+}
+.flowIcon { border-color: var(--line-strong); background: rgba(255, 255, 255, .09); color: var(--text); }
+.flowIcon.agent { border-color: rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .16); color: var(--text); }
+.flowNode small { color: var(--tertiary); }
+.flowConnector { background: linear-gradient(90deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .55)); }
+.flowConnector i { background: var(--text); box-shadow: 0 0 10px rgba(255, 255, 255, .7); }
+.flowDestinations > div { color: var(--secondary); }
+.flowDestinations small { color: var(--secondary); }
+
+.statsStrip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; min-height: 0; padding: 0; border: 0; }
+.statDivider { display: none; }
+.statItem {
+  min-height: 82px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(30, 30, 32, .6);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .1), 0 14px 40px rgba(0, 0, 0, .18);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+.statIcon { border-color: var(--line); background: rgba(255, 255, 255, .08); color: var(--text) !important; }
+.statItem strong { color: var(--text); }
+.statItem strong small { color: var(--secondary); }
+.statItem div > span { color: var(--tertiary); }
+
+.contentGrid { grid-template-columns: minmax(340px, .92fr) minmax(380px, 1.08fr); gap: 20px; padding-top: 18px; }
+.glassPanel {
+  border-color: var(--line);
+  border-radius: 24px;
+  background: rgba(30, 30, 32, .68);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .12), var(--shadow);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  backdrop-filter: blur(24px) saturate(145%);
+}
+.intakePanel, .resultPanel { padding: clamp(18px, 2.1vw, 28px); }
+.panelHeading .eyebrow { color: var(--tertiary); }
+.panelIntro, .activityHeading > div > p { color: var(--secondary); }
+.demoTag { border-color: var(--line); background: rgba(255, 255, 255, .045); color: var(--secondary); }
+.caseOption { border-color: rgba(255, 255, 255, .085); border-radius: 15px; background: rgba(0, 0, 0, .18); }
+.caseOption:hover { border-color: var(--line-strong); background: rgba(255, 255, 255, .06); }
+.caseOption.selected { border-color: rgba(255, 255, 255, .3); background: rgba(255, 255, 255, .105); box-shadow: inset 0 1px rgba(255,255,255,.1), 0 8px 24px rgba(0,0,0,.15); }
+.caseNumber { border-color: var(--line); background: rgba(255, 255, 255, .07); color: var(--secondary); }
+.caseOption.selected .caseNumber { border-color: var(--line-strong); background: rgba(255, 255, 255, .16); color: var(--text); }
+.radioMark { border-color: rgba(255, 255, 255, .28); }
+.caseOption.selected .radioMark { border-color: var(--text); }
+.caseOption.selected .radioMark span { background: var(--text); }
+.eventPreview, .notificationCard, .verificationTile, .classificationList li, .jevSuggestion, .activityRow {
+  border-color: rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .045);
+}
+.eventPreview { border-radius: 17px; }
+.previewGrid > div { border-color: var(--line); }
+.previewGrid span, .previewHead .eyebrow, .previewId { color: var(--tertiary); }
+.verificationGrid { gap: 14px; }
+.verificationTile { border-radius: 16px; }
+.tileTop { color: var(--secondary); }
+.tileTop svg { color: var(--text); }
+.verificationTile > strong, .notificationName strong { color: var(--text); }
+.notificationIcon { border-color: var(--line); background: rgba(255, 255, 255, .09); color: var(--text); }
+.notificationCopy > p { color: var(--secondary); }
+.deliveryStatus { color: var(--tertiary); }
+.deliveryStatus.good, .levelPill.informativa, .activityLevel.informativa { color: var(--green); }
+.deliveryStatus.bad, .levelPill.prioritaria, .activityLevel.prioritaria { color: var(--red); }
+.levelPill.revision, .activityLevel.revision { color: var(--yellow); }
+.levelPill, .verdictTag, .activityLevel { border-color: var(--line); background: rgba(255, 255, 255, .04); }
+.administrativeNotice { border-color: var(--line); background: rgba(255, 255, 255, .045); color: var(--secondary); }
+.administrativeNotice svg { color: var(--secondary); }
+.emptySignal { border-color: var(--line-strong); background: linear-gradient(145deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .035)); color: var(--text); box-shadow: inset 0 1px rgba(255,255,255,.16), 0 0 40px rgba(255,255,255,.05); }
+.emptySignal::before, .emptySignal::after { border-color: rgba(255, 255, 255, .1); }
+.processingState .radar { border-color: rgba(255, 255, 255, .25); background: radial-gradient(circle, rgba(255, 255, 255, .12), rgba(255, 255, 255, .015) 67%); box-shadow: 0 0 45px rgba(255, 255, 255, .08); }
+.processingState .radar::before, .processingState .radar::after, .processingState .radar span { border-color: rgba(255, 255, 255, .13); }
+.processingState .radar i { background: var(--text); box-shadow: 0 0 16px rgba(255, 255, 255, .8); }
+.processingSteps .stepDone, .processingSteps .stepLive { color: var(--secondary); }
+.processingSteps .stepDone::before, .processingSteps .stepLive::before { background: var(--text); }
+.processingSteps .stepLive::before { box-shadow: 0 0 7px rgba(255, 255, 255, .6); }
+.primaryButton { border-color: rgba(255, 255, 255, .76); background: #f5f5f7; color: #111113; box-shadow: inset 0 1px rgba(255, 255, 255, .6), 0 8px 24px rgba(0, 0, 0, .2); }
+.primaryButton:hover:not(:disabled) { border-color: #fff; background: #fff; color: #050506; }
+.primaryButton:disabled { border-color: var(--line); background: rgba(255, 255, 255, .12); color: var(--tertiary); }
+.secondaryButton, .historyRefresh { border-color: var(--line-strong); background: rgba(255, 255, 255, .08); color: var(--text); }
+.secondaryButton:hover:not(:disabled), .historyRefresh:hover:not(:disabled) { border-color: rgba(255, 255, 255, .34); background: rgba(255, 255, 255, .15); color: var(--text); }
+.jevExperiment { border-color: var(--line); background: rgba(255, 255, 255, .055); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+.jevExperimentHead > div > p, .jevExperimentAction > span { color: var(--secondary); }
+.jevState.configured { border-color: rgba(141, 231, 189, .28); color: var(--green); }
+.classificationLine strong { color: var(--text); }
+.classificationLine span { color: var(--secondary); }
+.classificationList li p, .classificationList li small { color: var(--tertiary); }
+.eventReference { border-color: var(--line); }
+.eventReference > span { color: var(--tertiary); }
+.eventReference code { color: var(--secondary); }
+.resultSummary { color: var(--secondary); }
+.activityPanel { margin-top: 14px; padding: clamp(18px, 2.1vw, 28px); }
+.activityRow:hover, .activityRow.selected { border-color: var(--line-strong); background: rgba(255, 255, 255, .085); }
+.activityIdentity strong { color: var(--text); }
+.activityIdentity span, .activityOpen { color: var(--secondary); }
+.activitySelect:hover .activityOpen { color: var(--text); }
+.activityEmpty, .flowFootnote p { color: var(--tertiary); }
+.footnoteLine { background: linear-gradient(var(--secondary), transparent); }
+.pageFooter { border-top: 1px solid var(--line); color: var(--tertiary); }
+.pageFooter a { color: var(--secondary); text-decoration-color: rgba(255, 255, 255, .3); }
+.pageFooter a:hover { color: var(--text); }
+.errorBanner { border-color: rgba(255, 124, 135, .26); background: rgba(255, 124, 135, .07); color: var(--secondary); }
+
+@media (max-width: 1100px) {
+  .mainArea { padding-inline: clamp(18px, 4vw, 44px); }
+  .heroBlock { grid-template-columns: 1fr; gap: 22px; padding-top: 52px; }
+  .heroFlow { max-width: 720px; }
+  .contentGrid { grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); gap: 18px; }
+}
+@media (max-width: 900px) {
+  .mainArea { width: min(820px, 100%); padding: 116px 20px 42px; }
+  .contentGrid { grid-template-columns: 1fr; }
+  .emptyResult { min-height: 315px; }
+}
+@media (max-width: 768px) {
+  html { scroll-padding-top: 104px; }
+  #overview, #simulate, #activity { scroll-margin-top: 104px; }
+  .mainArea { padding-top: 104px; }
+}
+@media (max-width: 640px) {
+  .mainArea { padding: 104px 13px 32px; }
+  .topbar { gap: 8px; border-radius: 15px; }
+  .privacyBadge { min-height: 26px; font-size: 9.5px; }
+  .heroBlock { gap: 18px; padding: 38px 2px 24px; }
+  h1 { max-width: 12ch; font-size: clamp(38px, 10vw, 53px); }
+  .heroCopy > p { font-size: 13px; line-height: 1.7; }
+  .heroFlow { min-height: 112px; gap: 6px; padding: 14px 11px; border-radius: 18px; }
+  .flowIcon { width: 34px; height: 34px; border-radius: 12px; }
+  .flowNode small { font-size: 9px; }
+  .flowDestinations { gap: 8px; }
+  .flowDestinations > div { gap: 5px; }
+  .flowDestinations small { font-size: 10px; }
+  .flowConnector { width: clamp(10px, 5vw, 26px); }
+  .flowConnector.split { width: clamp(8px, 4vw, 18px); }
+  .statsStrip { grid-template-columns: 1fr; gap: 13px; }
+  .statItem { min-height: 66px; padding: 11px 13px; border-radius: 17px; }
+  .statItem > div > span { white-space: normal; }
+  .contentGrid { gap: 16px; padding-top: 18px; }
+  .glassPanel, .jevExperiment { border-radius: 20px; }
+  .intakePanel, .resultPanel, .activityPanel { padding: 16px 13px; }
+  .activityPanel { margin-top: 11px; }
+  .pageFooter { gap: 6px; padding-top: 20px; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glassSurface, .glassPanel, .heroFlow, .statItem, .card-nav { background: #1c1c1e; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .jevExperiment { background: #1c1c1e; }
+  .topbar { background: #1c1c1e; }
+}

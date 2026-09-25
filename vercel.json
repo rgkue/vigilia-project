@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/resumen", "destination": "/" },
+    { "source": "/ingreso", "destination": "/" },
+    { "source": "/actividad", "destination": "/" },
+    { "source": "/simulador", "destination": "/" }
+  ]
+}

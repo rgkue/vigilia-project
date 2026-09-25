@@ -26,6 +26,10 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+function hasGatewayCredentials(): boolean {
+  return Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN);
+}
+
 function isSameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return false;
@@ -76,6 +80,12 @@ async function classifyCase(caseId: string): Promise<JevEvaluation> {
     model: MODEL,
     state: { motivo_ingreso: fixture.reason },
     questions,
+    providerOptions: {
+      gateway: {
+        disallowPromptTraining: true,
+        zeroDataRetention: true,
+      },
+    },
     maxRetries: 0,
     abortSignal: AbortSignal.timeout(12_000),
   });
@@ -119,9 +129,8 @@ async function classifyCase(caseId: string): Promise<JevEvaluation> {
 export async function handleJevRequest(request: Request): Promise<Response> {
   if (request.method === "GET") {
     return json({
-      configured: Boolean(process.env.AI_GATEWAY_API_KEY),
+      configured: hasGatewayCredentials(),
       model: MODEL,
-      promotionEnds: "2026-09-25",
     });
   }
 
@@ -131,14 +140,6 @@ export async function handleJevRequest(request: Request): Promise<Response> {
 
   if (!isSameOrigin(request)) {
     return json({ error: "La evaluación solo acepta solicitudes del mismo origen." }, 403);
-  }
-
-  if (!process.env.AI_GATEWAY_API_KEY) {
-    return json({ error: "Falta configurar AI_GATEWAY_API_KEY en el entorno del servidor." }, 503);
-  }
-
-  if (isRateLimited(request)) {
-    return json({ error: "Límite temporal alcanzado. Intenta de nuevo en un minuto." }, 429);
   }
 
   let payload: unknown;
@@ -156,6 +157,14 @@ export async function handleJevRequest(request: Request): Promise<Response> {
   const caseId = (payload as { caseId?: unknown }).caseId;
   if (keys.length !== 1 || keys[0] !== "caseId" || typeof caseId !== "string" || !fixtures[caseId]) {
     return json({ error: "El caso no está en la lista de escenarios sintéticos permitidos." }, 400);
+  }
+
+  if (!hasGatewayCredentials()) {
+    return json({ error: "Falta configurar una credencial de Vercel AI Gateway en el entorno del servidor." }, 503);
+  }
+
+  if (isRateLimited(request)) {
+    return json({ error: "Límite temporal alcanzado. Intenta de nuevo en un minuto." }, 429);
   }
 
   try {

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "tsc --noEmit && vite build",
+    "test:jev-contract": "node scripts/jev-contract-check.mjs",
+    "test:jev-synthetic": "node scripts/jev-synthetic-benchmark.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
