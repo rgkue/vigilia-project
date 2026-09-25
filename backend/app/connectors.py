@@ -16,6 +16,7 @@ from .secret_store import decrypt, encrypt
 
 router = APIRouter(prefix="/admin/integrations", tags=["integrations"])
 SUPPORTED_KINDS = {"ingress", "coverage", "history", "admissions", "case_manager"}
+MAX_CONNECTOR_RESPONSE = 1_000_000
 CANONICAL_FIELDS = {
     "ingress": {"evento_id", "cedula", "hospital", "motivo_ingreso", "triage", "fecha_ingreso"},
     "coverage": {"cedula", "numero", "plan", "vigente_desde", "vigente_hasta", "estado_pago", "carencia_dias"},
@@ -190,21 +191,25 @@ async def lookup(kind: str, value: str) -> tuple[Any, str]:
         kwargs = {"headers": _secret_headers(config)}
         async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
             if config["method"] == "POST":
-                response = await client.post(url, json=parameters, **kwargs)
+                response_context = client.stream("POST", url, json=parameters, **kwargs)
             else:
-                response = await client.get(url, params=parameters, **kwargs)
-        if response.status_code == 404:
-            # A 404 can mean a broken endpoint. Record absence only from a valid
-            # endpoint response (for example JSON null), never from HTTP routing.
-            set_integration_status(kind, "unavailable", "El endpoint respondió HTTP 404.")
-            return None, "unavailable"
-        response.raise_for_status()
-        if len(response.content) > 1_000_000:
-            set_integration_status(kind, "invalid_response", "La respuesta supera el tamaño permitido.")
-            return None, "invalid_response"
+                response_context = client.stream("GET", url, params=parameters, **kwargs)
+            async with response_context as response:
+                if response.status_code == 404:
+                    # A 404 can mean a broken endpoint. Record absence only from a valid
+                    # endpoint response (for example JSON null), never from HTTP routing.
+                    set_integration_status(kind, "unavailable", "El endpoint respondió HTTP 404.")
+                    return None, "unavailable"
+                response.raise_for_status()
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    if len(body) + len(chunk) > MAX_CONNECTOR_RESPONSE:
+                        set_integration_status(kind, "invalid_response", "La respuesta supera el tamaño permitido.")
+                        return None, "invalid_response"
+                    body.extend(chunk)
         try:
-            payload = response.json()
-        except ValueError:
+            payload = json.loads(body)
+        except (ValueError, UnicodeDecodeError):
             set_integration_status(kind, "invalid_response", "La fuente no devolvió JSON válido.")
             return None, "invalid_response"
         set_integration_status(kind, "connected")
@@ -361,11 +366,12 @@ async def test_integration(integration_id: str, request: Request, x_csrf_token: 
         async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
             headers = _secret_headers(dict(config))
             if config["method"] == "POST":
-                response = await client.post(config["endpoint_url"], json={config["lookup_parameter"]: "VIGILIA_TEST"}, headers=headers)
+                response_context = client.stream("POST", config["endpoint_url"], json={config["lookup_parameter"]: "VIGILIA_TEST"}, headers=headers)
             else:
-                response = await client.get(config["endpoint_url"], params={config["lookup_parameter"]: "VIGILIA_TEST"}, headers=headers)
-        if response.status_code >= 400:
-            status, message = "unavailable", f"El sistema respondió HTTP {response.status_code}."
+                response_context = client.stream("GET", config["endpoint_url"], params={config["lookup_parameter"]: "VIGILIA_TEST"}, headers=headers)
+            async with response_context as response:
+                if response.status_code >= 400:
+                    status, message = "unavailable", f"El sistema respondió HTTP {response.status_code}."
     except (httpx.HTTPError, RuntimeError) as exc:
         status, message = "unavailable", f"No se pudo conectar ({type(exc).__name__})."
     now = datetime.now(timezone.utc)

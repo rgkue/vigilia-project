@@ -15,7 +15,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import admin, agent, auth, connectors, rules, security
@@ -51,6 +53,14 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Vigilia", description="Coordinación administrativa de ingresos a emergencias", lifespan=lifespan)
+
+
+@app.exception_handler(RequestValidationError)
+async def safe_validation_error(_: Request, __: RequestValidationError):
+    # Pydantic's default validation response may echo submitted values, including secrets.
+    return JSONResponse(status_code=422, content={"detail": "La solicitud no cumple el contrato configurado."})
+
+
 origins = [
     value.strip()
     for value in (os.getenv("VIGILIA_CORS_ORIGINS") or "http://127.0.0.1:5173").split(",")
@@ -220,6 +230,8 @@ async def _production_records(event: EventoIngreso):
         if history_state == "connected":
             try:
                 conditions = connectors.map_history(history_payload, history_config)
+                if not conditions:
+                    history_state = "not_found"
             except (ValueError, KeyError, TypeError):
                 history_state = "invalid_response"
                 connectors.set_integration_status("history", history_state, "La respuesta no coincide con el mapeo de antecedentes.")
