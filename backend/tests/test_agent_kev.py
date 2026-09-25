@@ -183,7 +183,7 @@ class JevAdapterTests(unittest.TestCase):
         self.assertEqual(calls[0]["url"], agent.JEV_URL)
         self.assertEqual(sent["model"], agent.JEV_MODEL)
         self.assertEqual(sent["providerOptions"], {
-            "gateway": {"zeroDataRetention": True, "only": ["typesafe-ai"]}
+            "gateway": {"zeroDataRetention": True, "only": ["typesafe-ai", "digitalocean"]}
         })
         self.assertEqual(sent["state"], {
             "motivo_ingreso": "Dolor torácico opresivo",
@@ -193,6 +193,17 @@ class JevAdapterTests(unittest.TestCase):
         self.assertNotIn("8-400-400", json.dumps(sent, ensure_ascii=False))
         self.assertNotIn("Hospital ficticio", json.dumps(sent, ensure_ascii=False))
         self.assertEqual(calls[0]["headers"]["Authorization"], "Bearer test-only-key")
+
+    def test_zdr_audit_accepts_only_current_jev_gateway_providers(self):
+        for provider in agent.JEV_ALLOWED_GATEWAY_PROVIDERS:
+            with self.subTest(provider=provider):
+                self.assertTrue(self._metadata_for_provider_is_confirmed(provider))
+        self.assertFalse(self._metadata_for_provider_is_confirmed("unlisted-provider"))
+
+    @staticmethod
+    def _metadata_for_provider_is_confirmed(provider):
+        metadata = JevAdapterTests.zdr_route_metadata(final_provider=provider)
+        return agent._jev_zdr_route_confirmed(metadata)
 
     def test_sin_clave_no_llama_y_queda_pendiente(self):
         calls = []

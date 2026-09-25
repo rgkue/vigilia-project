@@ -26,6 +26,7 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL_DEFAULT = "openai/gpt-oss-120b"
 JEV_URL = "https://ai-gateway.vercel.sh/v1/evaluate"
 JEV_MODEL = "typesafe-ai/jev"
+JEV_ALLOWED_GATEWAY_PROVIDERS = ("typesafe-ai", "digitalocean")
 UMBRAL_DEFAULT = 0.75
 TIMEOUT_DEFAULT = 8.0
 
@@ -288,7 +289,7 @@ def _jev_zdr_route_confirmed(payload: object) -> bool:
     planning_reasoning = routing.get("planningReasoning")
     return (
         isinstance(final_provider, str)
-        and final_provider.strip().lower() == "typesafe-ai"
+        and final_provider.strip().lower() in JEV_ALLOWED_GATEWAY_PROVIDERS
         and isinstance(planning_reasoning, str)
         and "zdr requested" in planning_reasoning.lower()
     )
@@ -329,7 +330,7 @@ async def _consultar_jev(
         "providerOptions": {
             "gateway": {
                 "zeroDataRetention": True,
-                "only": ["typesafe-ai"],
+                "only": list(JEV_ALLOWED_GATEWAY_PROVIDERS),
             }
         },
     }
