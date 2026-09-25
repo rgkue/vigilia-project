@@ -18,6 +18,11 @@ const scenarios = [
     accepts: (relations) => relations.includes("POSIBLE") && !relations.includes("DIRECTA"),
     expectation: "al menos una sugerencia posible, ninguna directa",
   },
+  {
+    caseId: "vig-demo-07",
+    accepts: (relations) => relations.length === 1 && relations[0] === "DIRECTA",
+    expectation: "coincidencia textual exacta identificada como directa",
+  },
 ];
 
 function logResult(passed, name, detail = "") {
@@ -43,6 +48,7 @@ if (!statusResponse?.ok) {
 
     for (const scenario of scenarios) {
       for (let repeat = 1; repeat <= repeats; repeat += 1) {
+        const startedAt = Date.now();
         const response = await fetch(endpoint, {
           method: "POST",
           headers: {
@@ -52,16 +58,20 @@ if (!statusResponse?.ok) {
           },
           body: JSON.stringify({ caseId: scenario.caseId }),
         }).catch(() => null);
+        const latencyMs = Date.now() - startedAt;
 
         if (!response?.ok) {
           failures += 1;
-          logResult(false, `${scenario.caseId} muestra ${repeat}/${repeats}`, `HTTP ${response?.status ?? "sin respuesta"}`);
+          logResult(false, `${scenario.caseId} muestra ${repeat}/${repeats}`, `HTTP ${response?.status ?? "sin respuesta"}; ${latencyMs} ms`);
           continue;
         }
 
         const payload = await response.json().catch(() => null);
         const suggestions = Array.isArray(payload?.suggestions) ? payload.suggestions : [];
         const relations = suggestions.map((item) => item?.relation);
+        const probabilities = suggestions.map((item) => typeof item?.probability === "number"
+          ? item.probability.toFixed(2)
+          : "n/d");
         const validThreshold = payload?.threshold === expectedThreshold;
         const routingAudit = payload?.routingAudit;
         const validPrivacyAudit = routingAudit !== null
@@ -104,8 +114,8 @@ if (!statusResponse?.ok) {
           meetsExpectation,
           `${scenario.caseId} muestra ${repeat}/${repeats}`,
           validShape
-            ? `relaciones ${relations.join(", ")}; proveedor ${routingAudit.finalProvider}; filtro ${status.zdrRequired ? "ZDR y No Training" : "No Training"} auditado; umbral 75% y revisión humana validados; criterio: ${scenario.expectation}`
-            : "formato, probabilidad, umbral, revisión humana o metadatos de privacidad no válidos",
+            ? `relaciones ${relations.join(", ")}; probabilidades ${probabilities.join(", ")}; ${latencyMs} ms; proveedor ${routingAudit.finalProvider}; filtro ${status.zdrRequired ? "ZDR y No Training" : "No Training"} auditado; umbral 75% y revisión humana validados; criterio: ${scenario.expectation}`
+            : `formato, probabilidad, umbral, revisión humana o metadatos de privacidad no válidos; ${latencyMs} ms`,
         );
       }
     }
@@ -117,7 +127,7 @@ if (!statusResponse?.ok) {
       if (!stable) failures += 1;
     }
 
-    console.log("NOTA: benchmark de humo con dos escenarios ficticios; no demuestra exactitud clínica ni aprobación para producción.");
+    console.log("NOTA: benchmark de humo con tres escenarios ficticios; no demuestra exactitud clínica ni aprobación para producción.");
     if (failures > 0) process.exitCode = 1;
   }
 }

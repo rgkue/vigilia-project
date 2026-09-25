@@ -15,6 +15,10 @@ const fixtures: Record<string, { reason: string; conditions: string[] }> = {
     reason: "Dolor torácico opresivo",
     conditions: ["Hipertensión arterial", "Diabetes mellitus tipo 2"],
   },
+  "vig-demo-07": {
+    reason: "Asma leve",
+    conditions: ["Asma leve"],
+  },
 };
 
 const requestCounts = new Map<string, { count: number; resetsAt: number }>();
