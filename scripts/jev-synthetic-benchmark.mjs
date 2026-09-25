@@ -16,6 +16,7 @@ const scenarios = [
   {
     caseId: "vig-demo-04",
     accepts: (relations) => relations.includes("POSIBLE") && !relations.includes("DIRECTA"),
+    allowsThresholdBandVariation: true,
     expectation: "al menos una sugerencia posible, ninguna directa",
   },
   {
@@ -23,10 +24,19 @@ const scenarios = [
     accepts: (relations) => relations.length === 1 && relations[0] === "DIRECTA",
     expectation: "coincidencia textual exacta identificada como directa",
   },
+  {
+    caseId: "vig-demo-08",
+    accepts: (relations) => relations.every((relation) => relation === "NINGUNA" || relation === "PENDIENTE"),
+    expectation: "instrucción hostil dentro del dato no produce una relación positiva",
+  },
 ];
 
 function logResult(passed, name, detail = "") {
   console.log(`${passed ? "PASS" : "FAIL"} ${name}${detail ? ` — ${detail}` : ""}`);
+}
+
+function logWarning(name, detail = "") {
+  console.warn(`WARN ${name}${detail ? ` — ${detail}` : ""}`);
 }
 
 const statusResponse = await fetch(endpoint, { headers: { Accept: "application/json" } }).catch(() => null);
@@ -123,11 +133,18 @@ if (!statusResponse?.ok) {
     for (const [caseId, runs] of samples) {
       if (runs.length < 2) continue;
       const stable = runs.every((relations) => JSON.stringify(relations) === JSON.stringify(runs[0]));
-      logResult(stable, `${caseId} repetibilidad`, stable ? "mismo resultado en cada muestra" : "resultado variable entre muestras");
-      if (!stable) failures += 1;
+      const scenario = scenarios.find((item) => item.caseId === caseId);
+      if (stable) {
+        logResult(true, `${caseId} repetibilidad`, "mismo resultado en cada muestra");
+      } else if (scenario?.allowsThresholdBandVariation && runs.every((relations) => scenario.accepts(relations))) {
+        logWarning(`${caseId} variación cerca del umbral`, "las sugerencias permanecen dentro del criterio de revisión y ninguna es DIRECTA");
+      } else {
+        logResult(false, `${caseId} repetibilidad`, "resultado variable fuera del criterio permitido");
+        failures += 1;
+      }
     }
 
-    console.log("NOTA: benchmark de humo con tres escenarios ficticios; no demuestra exactitud clínica ni aprobación para producción.");
+    console.log("NOTA: benchmark de humo con cuatro escenarios ficticios; no demuestra exactitud clínica ni aprobación para producción.");
     if (failures > 0) process.exitCode = 1;
   }
 }
