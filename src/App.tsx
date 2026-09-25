@@ -404,6 +404,12 @@ function JevExperiment({
             </div>
           ))}
           <p className="jevDisclaimer">{evaluation.note} La probabilidad del modelo no es una tasa de acierto.</p>
+          <details className="jevRoutingAudit">
+            <summary>{evaluation.routingAudit?.noTrainingRequested ? "Filtro No Training indicado por AI Gateway" : "Ruta de privacidad no verificada"}</summary>
+            {evaluation.routingAudit?.finalProvider && <span>Proveedor: {evaluation.routingAudit.finalProvider}</span>}
+            {evaluation.routingAudit?.planningReasoning && <p>{evaluation.routingAudit.planningReasoning}</p>}
+            {!evaluation.routingAudit?.planningReasoning && <p>La respuesta no incluyó metadatos de enrutamiento suficientes para confirmar la política.</p>}
+          </details>
         </div>
       )}
     </section>

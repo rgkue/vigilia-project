@@ -61,6 +61,13 @@ if (!statusResponse?.ok) {
         const suggestions = Array.isArray(payload?.suggestions) ? payload.suggestions : [];
         const relations = suggestions.map((item) => item?.relation);
         const validThreshold = payload?.threshold === expectedThreshold;
+        const routingAudit = payload?.routingAudit;
+        const validPrivacyAudit = routingAudit !== null
+          && typeof routingAudit === "object"
+          && typeof routingAudit.finalProvider === "string"
+          && routingAudit.finalProvider.length > 0
+          && typeof routingAudit.planningReasoning === "string"
+          && routingAudit.noTrainingRequested === true;
         const validSuggestions = suggestions.length > 0 && suggestions.every((item) => {
           if (
             typeof item?.condition !== "string"
@@ -85,6 +92,7 @@ if (!statusResponse?.ok) {
         const validShape = payload?.model === "typesafe-ai/jev"
           && typeof payload?.note === "string"
           && validThreshold
+          && validPrivacyAudit
           && validSuggestions;
         const meetsExpectation = validShape && scenario.accepts(relations);
         samples.get(scenario.caseId).push(relations);
@@ -93,8 +101,8 @@ if (!statusResponse?.ok) {
           meetsExpectation,
           `${scenario.caseId} muestra ${repeat}/${repeats}`,
           validShape
-            ? `relaciones ${relations.join(", ")}; umbral 75% y revisión humana validados; criterio: ${scenario.expectation}`
-            : "formato, probabilidad, umbral o revisión humana no válidos",
+            ? `relaciones ${relations.join(", ")}; proveedor ${routingAudit.finalProvider}; filtro No Training auditado; umbral 75% y revisión humana validados; criterio: ${scenario.expectation}`
+            : "formato, probabilidad, umbral, revisión humana o metadatos de privacidad no válidos",
         );
       }
     }

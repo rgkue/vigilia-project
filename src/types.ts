@@ -56,6 +56,14 @@ export interface JevEvaluation {
   threshold: number;
   suggestions: JevSuggestion[];
   note: string;
+  routingAudit: JevRoutingAudit | null;
+}
+
+export interface JevRoutingAudit {
+  finalProvider: string | null;
+  planningReasoning: string | null;
+  noTrainingRequested: boolean;
+  zeroDataRetentionRequested: boolean;
 }
 
 /** Exact request schema from backend/app/schemas.py. */

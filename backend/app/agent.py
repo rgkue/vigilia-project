@@ -266,6 +266,29 @@ def _jev_timeout() -> float:
         return TIMEOUT_DEFAULT
 
 
+def _jev_zdr_route_confirmed(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    provider_metadata = payload.get("providerMetadata")
+    if not isinstance(provider_metadata, dict):
+        return False
+    gateway = provider_metadata.get("gateway")
+    if not isinstance(gateway, dict):
+        return False
+    routing = gateway.get("routing")
+    if not isinstance(routing, dict):
+        return False
+
+    final_provider = routing.get("finalProvider")
+    planning_reasoning = routing.get("planningReasoning")
+    return (
+        isinstance(final_provider, str)
+        and final_provider.strip().lower() == "typesafe-ai"
+        and isinstance(planning_reasoning, str)
+        and "zdr requested" in planning_reasoning.lower()
+    )
+
+
 async def _consultar_jev(
     event: EventoIngreso,
     conditions: list[str],
@@ -298,7 +321,12 @@ async def _consultar_jev(
         "state": state,
         "questions": questions,
         # Esta ruta del backend procesa datos de ingresos reales; ZDR es obligatorio.
-        "providerOptions": {"gateway": {"zeroDataRetention": True}},
+        "providerOptions": {
+            "gateway": {
+                "zeroDataRetention": True,
+                "only": ["typesafe-ai"],
+            }
+        },
     }
     try:
         async with httpx.AsyncClient(timeout=_jev_timeout(), follow_redirects=False) as client:
@@ -315,6 +343,9 @@ async def _consultar_jev(
     except (httpx.HTTPError, ValueError) as exc:
         # No registrar claves, texto de salud, respuesta ni cuerpo de error del proveedor.
         logger.warning("Jev no respondió con una clasificación válida (%s).", type(exc).__name__)
+        return None
+    if not _jev_zdr_route_confirmed(payload):
+        logger.warning("Jev no confirmó el enrutamiento ZDR requerido.")
         return None
     return _normalize_jev(payload, conditions)
 

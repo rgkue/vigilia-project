@@ -1,5 +1,5 @@
 import { experimental_evaluate as evaluate } from "ai";
-import type { JevEvaluation, JevRelation, JevSuggestion } from "../types";
+import type { JevEvaluation, JevRelation, JevRoutingAudit, JevSuggestion } from "../types";
 
 const MODEL = "typesafe-ai/jev" as const;
 const MIN_PROBABILITY = 0.75;
@@ -57,6 +57,29 @@ function relation(value: unknown): JevRelation {
   return value === "DIRECTA" || value === "POSIBLE" || value === "NINGUNA"
     ? value
     : "PENDIENTE";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function readRoutingAudit(providerMetadata: unknown): JevRoutingAudit | null {
+  if (!isRecord(providerMetadata) || !isRecord(providerMetadata.gateway)) return null;
+  const routing = providerMetadata.gateway.routing;
+  if (!isRecord(routing)) return null;
+
+  const finalProvider = typeof routing.finalProvider === "string" ? routing.finalProvider.slice(0, 80) : null;
+  const planningReasoning = typeof routing.planningReasoning === "string"
+    ? routing.planningReasoning.slice(0, 320)
+    : null;
+  const reasoning = planningReasoning?.toLowerCase() ?? "";
+
+  return {
+    finalProvider,
+    planningReasoning,
+    noTrainingRequested: Boolean(finalProvider && /no[ -]training|disallow prompt training/i.test(reasoning)),
+    zeroDataRetentionRequested: /\bzdr\b|zero data retention/i.test(reasoning),
+  };
 }
 
 async function classifyCase(caseId: string): Promise<JevEvaluation> {
@@ -122,6 +145,7 @@ async function classifyCase(caseId: string): Promise<JevEvaluation> {
     threshold: MIN_PROBABILITY,
     suggestions,
     note: "Prueba con datos sintéticos. Cada sugerencia requiere revisión humana y no determina cobertura ni atención.",
+    routingAudit: readRoutingAudit(response.providerMetadata),
   };
 }
 
