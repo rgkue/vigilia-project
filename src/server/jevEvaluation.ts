@@ -120,12 +120,21 @@ async function classifyCase(caseId: string): Promise<JevEvaluation> {
       gateway: {
         ...(requiresZdrForSynthetic()
           ? { zeroDataRetention: true, only: ["typesafe-ai"] }
-          : { disallowPromptTraining: true }),
+          : { disallowPromptTraining: true, only: ["typesafe-ai"] }),
       },
     },
     maxRetries: 0,
     abortSignal: AbortSignal.timeout(12_000),
   });
+
+  const routingAudit = readRoutingAudit(response.providerMetadata);
+  const policyConfirmed = routingAudit?.finalProvider === "typesafe-ai"
+    && (requiresZdrForSynthetic()
+      ? routingAudit.zeroDataRetentionRequested
+      : routingAudit.noTrainingRequested);
+  if (!policyConfirmed) {
+    throw new Error("Jev no confirmó el proveedor y la política de privacidad requeridos.");
+  }
 
   const suggestions: JevSuggestion[] = fixture.conditions.map((condition, index) => {
     const answer = response.answers[`antecedente_${index + 1}`] as unknown as {
@@ -160,7 +169,7 @@ async function classifyCase(caseId: string): Promise<JevEvaluation> {
     threshold: MIN_PROBABILITY,
     suggestions,
     note: "Prueba con datos sintéticos. Cada sugerencia requiere revisión humana y no determina cobertura ni atención.",
-    routingAudit: readRoutingAudit(response.providerMetadata),
+    routingAudit,
   };
 }
 
