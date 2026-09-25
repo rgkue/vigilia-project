@@ -170,6 +170,10 @@ h2 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.035em; line
 .jevSuggestion > span { color: var(--blue); font-size: 10.5px; text-align: right; }
 .jevSuggestion small { grid-column: 1 / -1; color: #849ba6; font-family: var(--mono); font-size: 10px; }
 .jevDisclaimer { margin: 0; color: #879ba5; font-size: 10.5px; line-height: 1.55; }
+.jevRoutingAudit { color: #8fa5b0; font-size: 10.5px; line-height: 1.5; }
+.jevRoutingAudit summary { color: #9cb4bf; cursor: pointer; }
+.jevRoutingAudit span { display: block; margin-top: 5px; color: #afc2cb; }
+.jevRoutingAudit p { margin: 4px 0 0; overflow-wrap: anywhere; }
 .jevError { margin: 0; color: #ff7c87; font-size: 11.5px; line-height: 1.55; }
 .chooseHint { display: flex; min-height: 55px; align-items: center; gap: 9px; margin-top: 14px; padding: 0 12px; border: 1px dashed rgba(255, 255, 255, .13); border-radius: 12px; color: var(--faint); font-size: 12.5px; }
 .hintDot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 4px rgba(126, 180, 255, .075); }

@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 TEST_DIRECTORY = tempfile.TemporaryDirectory(prefix="vigilia-pytest-")
+os.environ.__setitem__("VIGILIA_MODE", "demo")
 os.environ.__setitem__("VIGILIA_DB", str(Path(TEST_DIRECTORY.name) / "vigilia-pytest.db"))
 os.environ.__setitem__("VIGILIA_KEY", "")
 os.environ.__setitem__("VIGILIA_AI_PROVIDER", "kev")

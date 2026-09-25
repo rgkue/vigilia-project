@@ -1,9 +1,9 @@
 """Clasificación administrativa opcional y mensajes deterministas.
 
-Kev sigue siendo el proveedor predeterminado local. Groq se puede seleccionar
-explícitamente para conservar la integración publicada; ambas salidas son
-solo sugerencias y siempre requieren revisión humana. Si un proveedor falla,
-el sistema deja la clasificación pendiente en vez de afirmar que no hay relación.
+El proveedor por defecto es ``none``. Kev, Jev o Groq se seleccionan de forma
+explícita; en producción también requieren aprobación. Sus resultados son
+sugerencias que se revisan por una persona; si un proveedor falla, la
+clasificación queda pendiente en vez de afirmar que no hay relación.
 """
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL_DEFAULT = "openai/gpt-oss-120b"
 JEV_URL = "https://ai-gateway.vercel.sh/v1/evaluate"
 JEV_MODEL = "typesafe-ai/jev"
+JEV_ALLOWED_GATEWAY_PROVIDERS = ("typesafe-ai", "digitalocean")
 UMBRAL_DEFAULT = 0.75
 TIMEOUT_DEFAULT = 8.0
 
@@ -266,6 +267,34 @@ def _jev_timeout() -> float:
         return TIMEOUT_DEFAULT
 
 
+def _jev_zdr_route_confirmed(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    # The HTTP Evaluation API serializes this key as snake_case. Accept the
+    # camelCase AI SDK form as well so both documented response shapes remain
+    # auditable if the transport changes.
+    provider_metadata = payload.get("provider_metadata")
+    if not isinstance(provider_metadata, dict):
+        provider_metadata = payload.get("providerMetadata")
+    if not isinstance(provider_metadata, dict):
+        return False
+    gateway = provider_metadata.get("gateway")
+    if not isinstance(gateway, dict):
+        return False
+    routing = gateway.get("routing")
+    if not isinstance(routing, dict):
+        return False
+
+    final_provider = routing.get("finalProvider")
+    planning_reasoning = routing.get("planningReasoning")
+    return (
+        isinstance(final_provider, str)
+        and final_provider.strip().lower() in JEV_ALLOWED_GATEWAY_PROVIDERS
+        and isinstance(planning_reasoning, str)
+        and "zdr requested" in planning_reasoning.lower()
+    )
+
+
 async def _consultar_jev(
     event: EventoIngreso,
     conditions: list[str],
@@ -298,7 +327,12 @@ async def _consultar_jev(
         "state": state,
         "questions": questions,
         # Esta ruta del backend procesa datos de ingresos reales; ZDR es obligatorio.
-        "providerOptions": {"gateway": {"zeroDataRetention": True}},
+        "providerOptions": {
+            "gateway": {
+                "zeroDataRetention": True,
+                "only": list(JEV_ALLOWED_GATEWAY_PROVIDERS),
+            }
+        },
     }
     try:
         async with httpx.AsyncClient(timeout=_jev_timeout(), follow_redirects=False) as client:
@@ -314,7 +348,15 @@ async def _consultar_jev(
             payload = response.json()
     except (httpx.HTTPError, ValueError) as exc:
         # No registrar claves, texto de salud, respuesta ni cuerpo de error del proveedor.
-        logger.warning("Jev no respondió con una clasificación válida (%s).", type(exc).__name__)
+        status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else "n/a"
+        logger.warning(
+            "Jev no respondió con una clasificación válida (error=%s, status=%s).",
+            type(exc).__name__,
+            status,
+        )
+        return None
+    if not _jev_zdr_route_confirmed(payload):
+        logger.warning("Jev no confirmó el enrutamiento ZDR requerido.")
         return None
     return _normalize_jev(payload, conditions)
 
@@ -468,7 +510,11 @@ async def relacionar_preexistencias(
         _clean_text(item.get("condicion") or "Antecedente sin descripción", 200)
         for item in preexistencias
     ]
-    provider = os.getenv("VIGILIA_AI_PROVIDER", "kev").strip().casefold()
+    provider = os.getenv("VIGILIA_AI_PROVIDER", "none").strip().casefold()
+    from .db import database_mode
+
+    if database_mode() == "production" and os.getenv("VIGILIA_AI_APPROVED", "false").strip().casefold() != "true":
+        provider = "none"
 
     if provider == "kev":
         config = _kev_endpoint()
@@ -518,22 +564,20 @@ async def redactar_mensajes(
     rel: list[PreexistenciaRelacionada],
 ) -> Mensajes:
     """Crea avisos distintos mediante plantillas, sin generación libre de texto."""
-    quien = nombre or f"cédula {ev.cedula}"
-    estado_poliza = "sin póliza confirmada" if poliza is None else (
+    estado_poliza = "consulta pendiente" if poliza is None else (
         "póliza vigente" if poliza.vigente else "vigencia por revisar"
     )
     pendientes = sum("pendiente" in item.justificacion.casefold() for item in rel)
     relacionadas = sum(item.relacion in {"DIRECTA", "POSIBLE"} for item in rel)
 
     admisiones = (
-        f"[{nivel}] Ingreso {_slack_text(ev.evento_id, 40)}: {_slack_text(quien, 80)} ingresó a "
-        f"{_slack_text(ev.hospital, 80)} por «{_slack_text(ev.motivo_ingreso, 200)}». "
-        f"{estado_poliza}; veredicto administrativo: {veredicto}. "
+        f"[{nivel}] Ingreso {_slack_text(ev.evento_id, 40)}. {estado_poliza}; "
+        f"veredicto administrativo: {veredicto}. Consulte el detalle en Vigilia. "
         "Continúe la atención de emergencia con normalidad; esta alerta no decide cobertura."
     )
     gestor = (
-        f"[{nivel}] Revisar el ingreso {_slack_text(ev.evento_id, 40)} de {_slack_text(quien, 80)}. "
-        f"Veredicto: {veredicto}; relaciones orientativas: {relacionadas}; "
+        f"[{nivel}] Revisar el ingreso {_slack_text(ev.evento_id, 40)} en Vigilia. "
+        f"Veredicto: {veredicto}; sugerencias orientativas: {relacionadas}; "
         f"clasificaciones pendientes: {pendientes}. Confirmar la información con el expediente. "
         "La decisión final corresponde al equipo responsable."
     )

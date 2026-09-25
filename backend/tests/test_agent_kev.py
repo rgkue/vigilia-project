@@ -153,9 +153,22 @@ class JevAdapterTests(unittest.TestCase):
         environment.update(overrides)
         return environment
 
-    def test_respuesta_valida_exige_zdr_y_minimiza_datos(self):
+    @staticmethod
+    def zdr_route_metadata(final_provider="typesafe-ai", planning_reasoning="ZDR requested: 1 attempt → 1 ZDR attempt."):
+        return {
+            "provider_metadata": {
+                "gateway": {
+                    "routing": {
+                        "finalProvider": final_provider,
+                        "planningReasoning": planning_reasoning,
+                    }
+                }
+            }
+        }
+
+    def test_respuesta_http_snake_case_exige_zdr_y_minimiza_datos(self):
         calls = []
-        payload = {"answers": {
+        payload = {**self.zdr_route_metadata(), "answers": {
             "antecedente_1": {"choice": "POSIBLE", "probabilities": {"POSIBLE": 0.91}},
             "antecedente_2": {"choice": "NINGUNA", "probabilities": {"NINGUNA": 0.88}},
         }}
@@ -169,7 +182,9 @@ class JevAdapterTests(unittest.TestCase):
         sent = calls[0]["body"]
         self.assertEqual(calls[0]["url"], agent.JEV_URL)
         self.assertEqual(sent["model"], agent.JEV_MODEL)
-        self.assertEqual(sent["providerOptions"], {"gateway": {"zeroDataRetention": True}})
+        self.assertEqual(sent["providerOptions"], {
+            "gateway": {"zeroDataRetention": True, "only": ["typesafe-ai", "digitalocean"]}
+        })
         self.assertEqual(sent["state"], {
             "motivo_ingreso": "Dolor torácico opresivo",
             "antecedente_1": "Hipertensión arterial",
@@ -178,6 +193,17 @@ class JevAdapterTests(unittest.TestCase):
         self.assertNotIn("8-400-400", json.dumps(sent, ensure_ascii=False))
         self.assertNotIn("Hospital ficticio", json.dumps(sent, ensure_ascii=False))
         self.assertEqual(calls[0]["headers"]["Authorization"], "Bearer test-only-key")
+
+    def test_zdr_audit_accepts_only_current_jev_gateway_providers(self):
+        for provider in agent.JEV_ALLOWED_GATEWAY_PROVIDERS:
+            with self.subTest(provider=provider):
+                self.assertTrue(self._metadata_for_provider_is_confirmed(provider))
+        self.assertFalse(self._metadata_for_provider_is_confirmed("unlisted-provider"))
+
+    @staticmethod
+    def _metadata_for_provider_is_confirmed(provider):
+        metadata = JevAdapterTests.zdr_route_metadata(final_provider=provider)
+        return agent._jev_zdr_route_confirmed(metadata)
 
     def test_sin_clave_no_llama_y_queda_pendiente(self):
         calls = []
@@ -190,7 +216,7 @@ class JevAdapterTests(unittest.TestCase):
         self.assertTrue(all(item.justificacion.startswith("Revisión humana pendiente:") for item in results))
 
     def test_baja_probabilidad_queda_pendiente(self):
-        payload = {"answers": {
+        payload = {**self.zdr_route_metadata(), "answers": {
             "antecedente_1": {"choice": "POSIBLE", "probabilities": {"POSIBLE": 0.74}},
             "antecedente_2": {"choice": "NINGUNA", "probabilities": {"NINGUNA": 0.99}},
         }}
@@ -204,6 +230,23 @@ class JevAdapterTests(unittest.TestCase):
         self.assertEqual(results[1].relacion, "NINGUNA")
         self.assertTrue(results[1].justificacion.startswith("Jev sugiere ninguna"))
 
+    def test_falta_de_auditoria_zdr_deja_sugerencias_pendientes(self):
+        answers = {
+            "antecedente_1": {"choice": "POSIBLE", "probabilities": {"POSIBLE": 0.99}},
+            "antecedente_2": {"choice": "NINGUNA", "probabilities": {"NINGUNA": 0.99}},
+        }
+        payloads = (
+            {"answers": answers},
+            {**self.zdr_route_metadata(planning_reasoning="No Training requested: 1 attempt."), "answers": answers},
+            {**self.zdr_route_metadata(final_provider="other-provider"), "answers": answers},
+        )
+        for payload in payloads:
+            with self.subTest(provider_metadata=payload.get("providerMetadata")), patch.dict(
+                os.environ, self.environment(), clear=False
+            ), patch.object(agent.httpx, "AsyncClient", cliente_falso(payload)):
+                results = self.run_agent()
+            self.assertTrue(all(item.justificacion.startswith("Revisión humana pendiente:") for item in results))
+
     def test_respuesta_malformada_o_error_de_red_quedan_pendientes(self):
         for payload, error in (({"unexpected": True}, None), (None, httpx.ConnectError("offline"))):
             with self.subTest(error=error), patch.dict(os.environ, self.environment(), clear=False), patch.object(
@@ -212,6 +255,24 @@ class JevAdapterTests(unittest.TestCase):
                 results = self.run_agent()
             self.assertEqual(len(results), 2)
             self.assertTrue(all(item.justificacion.startswith("Revisión humana pendiente:") for item in results))
+
+    def test_http_403_falla_cerrado_y_registra_solo_estado_sin_cuerpo(self):
+        response = httpx.Response(
+            403,
+            request=httpx.Request("POST", agent.JEV_URL),
+            text="sensitive-provider-error",
+        )
+        error = httpx.HTTPStatusError("403 Forbidden", request=response.request, response=response)
+        with self.assertLogs(agent.logger, level="WARNING") as captured, patch.dict(
+            os.environ, self.environment(), clear=False
+        ), patch.object(agent.httpx, "AsyncClient", cliente_falso(error=error)):
+            results = self.run_agent()
+
+        log_output = "\n".join(captured.output)
+        self.assertIn("HTTPStatusError", log_output)
+        self.assertIn("status=403", log_output)
+        self.assertNotIn("sensitive-provider-error", log_output)
+        self.assertTrue(all(item.justificacion.startswith("Revisión humana pendiente:") for item in results))
 
 
 class GroqAdapterTests(unittest.TestCase):
@@ -325,7 +386,7 @@ class GroqAdapterTests(unittest.TestCase):
 
 
 class SlackMessageTests(unittest.TestCase):
-    def test_external_mentions_and_links_are_escaped(self):
+    def test_external_mentions_and_links_are_not_included_in_templates(self):
         malicious_event = evento().model_copy(update={
             "motivo_ingreso": "<!channel> <https://example.test|abrir>",
         })
@@ -343,8 +404,8 @@ class SlackMessageTests(unittest.TestCase):
         self.assertNotIn("<!channel>", combined)
         self.assertNotIn("<@everyone>", combined)
         self.assertNotIn("<https://", combined)
-        self.assertIn("&lt;!channel&gt;", combined)
-        self.assertIn("&lt;https://example.test|abrir&gt;", combined)
+        self.assertNotIn("example.test", combined)
+        self.assertNotIn("Paciente", combined)
 
 
 if __name__ == "__main__":
