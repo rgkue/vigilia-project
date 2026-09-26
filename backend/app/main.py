@@ -66,7 +66,10 @@ app = FastAPI(title="Vigilia", description="Coordinación administrativa de ingr
 @app.middleware("http")
 async def private_auth_responses(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/auth/", "/admin/employees")):
+    path = str(request.scope.get("path") or request.url.path)
+    if path.startswith("/api/"):
+        path = path[4:]
+    if path.startswith(("/auth/", "/admin/employees")):
         response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -103,7 +106,10 @@ app.add_middleware(
 @app.middleware("http")
 async def personal_ai_cache_policy(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/me/ai", "/admin/ai")):
+    path = str(request.scope.get("path") or request.url.path)
+    if path.startswith("/api/"):
+        path = path[4:]
+    if path.startswith(("/me/ai", "/admin/ai")):
         response.headers["Cache-Control"] = "no-store"
     return response
 

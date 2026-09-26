@@ -54,7 +54,7 @@ Variables principales:
 |---|---|
 | `VIGILIA_MODE=production` | Desactiva fixtures y requiere PostgreSQL. |
 | `DATABASE_URL` | Conexión PostgreSQL. Las migraciones pendientes se aplican al iniciar. |
-| `OIDC_DISCOVERY_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | Opcional. Inicio de sesión corporativo OIDC: define las cuatro o ninguna. Registra `/auth/callback` como URL de retorno, o configura `OIDC_REDIRECT_URL`. |
+| `OIDC_DISCOVERY_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | Opcional. Inicio de sesión corporativo OIDC: define las cuatro o ninguna. En Vercel, registra `/api/auth/callback` como URL de retorno o configura `OIDC_REDIRECT_URL`. |
 | `VIGILIA_BOOTSTRAP_ADMIN_EMAIL` | Solo con OIDC. Correo verificado que aprovisiona el primer perfil administrador corporativo. |
 | `VIGILIA_SESSION_SECRET` | Secreto aleatorio de al menos 32 caracteres para firmar sesiones. |
 | `VIGILIA_SECRET_ENCRYPTION_KEY` | Clave Fernet para cifrar secretos de conectores almacenados en PostgreSQL. Conserva una copia recuperable en el gestor de secretos. |
@@ -64,7 +64,20 @@ Variables principales:
 | `VIGILIA_AI_PROVIDER=none` | Mantiene desactivada la IA externa. Usa `kev`, `jev` o `groq` solo tras aprobación documentada. |
 | `VIGILIA_AI_APPROVED=false` | El backend ignora un proveedor externo en producción mientras siga en `false`. |
 
-Para servir frontend y API en dominios distintos, define también `VITE_API_BASE_URL` durante la compilación, agrega el origen del frontend a `VIGILIA_CORS_ORIGINS` y configura `VIGILIA_SESSION_SAME_SITE=none`. Si se usa proxy inverso de mismo origen, deja `VITE_API_BASE_URL` vacío.
+Para servir frontend y API en dominios distintos, define `VITE_API_BASE_URL` con la URL del backend durante la compilación, agrega el origen del frontend a `VIGILIA_CORS_ORIGINS` y configura `VIGILIA_SESSION_SAME_SITE=none`. En una instalación con API bajo `/api`, el frontend de producción usa esa ruta por defecto; para un proxy de mismo origen en `/`, define `VITE_API_BASE_URL=/`.
+
+### Despliegue en Vercel
+
+Vercel puede servir la interfaz Vite y el backend FastAPI desde este repositorio. Mantén **Root Directory** en la raíz del repositorio: `api/index.py` publica FastAPI bajo `/api`, y la interfaz de producción usa esa ruta automáticamente. `VITE_API_BASE_URL` solo hace falta si el backend vive en otro dominio; en ese caso configúrala en las variables de entorno de Vercel.
+
+Configura las variables de producción del backend en Vercel antes de iniciar sesión:
+
+- `VIGILIA_MODE=production`
+- `DATABASE_URL` con una base PostgreSQL persistente y accesible desde las funciones de Vercel. SQLite no sirve como almacenamiento persistente en funciones serverless.
+- `VIGILIA_SESSION_SECRET` con al menos 32 caracteres aleatorios.
+- `VIGILIA_SECRET_ENCRYPTION_KEY` con una clave Fernet válida.
+
+Si usas OIDC, registra `https://<dominio-de-vercel>/api/auth/callback` en el proveedor, configura `OIDC_REDIRECT_URL` con esa URL y `OIDC_FRONTEND_ORIGIN` con `https://<dominio-de-vercel>`. Si la API está en otro dominio, también configura CORS y `VIGILIA_SESSION_SAME_SITE=none` como se indica arriba.
 
 El formulario humano de ingresos está desactivado en la UI hasta que el despliegue defina `VITE_LIVE_INGRESS_ENABLED=true`; además, el backend exige el permiso `ingress.submit`. El webhook de sistemas no depende de esa opción.
 

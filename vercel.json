@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "backend/migrations/**/*.sql"
+    }
+  },
   "rewrites": [
     { "source": "/resumen", "destination": "/" },
     { "source": "/ingreso", "destination": "/" },

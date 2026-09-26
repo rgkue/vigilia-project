@@ -20,7 +20,7 @@ Al pulsar **Procesar ingreso**, el frontend envía `POST /webhook/ingreso` con u
 
 `triage` es opcional y no se envía en los casos de muestra. Las cédulas sintéticas corresponden a los fixtures documentados por el backend: `8-100-100`, `8-200-200`, `8-300-300`, `8-400-400`, `8-500-500` y `9-999-999`.
 
-Con la API configurada, la cabecera consulta `GET /health` para distinguir un servicio en línea de uno no disponible y la sección **Actividad reciente** lee `GET /ingresos?limite=10`. Sin URL configurada, muestra solo los resultados de la sesión actual y los identifica como locales.
+La interfaz de producción usa `/api` por defecto; en Vercel, `api/index.py` monta allí la API FastAPI del repositorio. En desarrollo, Vite conserva su proxy local. Si el backend se despliega aparte, `VITE_API_BASE_URL` permite apuntar al servicio externo. Con la API disponible, la cabecera consulta `GET /health` y **Actividad reciente** lee `GET /ingresos?limite=10`.
 
 GitHub registra actualmente el servicio `Production – vigilia-api` en [`https://vigilia-5k24gdyol-rgkue.vercel.app`](https://vigilia-5k24gdyol-rgkue.vercel.app). Esa es una URL observada en el despliegue, aún pendiente de verificación desde el frontend y de confirmar como dominio estable; no se configura como predeterminada.
 
@@ -34,7 +34,7 @@ El backend local prioriza Kev (VIGILIA_AI_PROVIDER=kev) y también integra el pr
 
 ## Configuración y manejo de claves
 
-Crear `.env.local` desde `.env.example` y establecer `VITE_API_BASE_URL` con la URL del servicio FastAPI. `VITE_INGRESO_PATH` puede cambiar la ruta si el backend la mueve.
+Crear `.env.local` desde `.env.example`. Para el backend local basta dejar `VITE_API_BASE_URL` vacío: Vite reenvía sus rutas API a FastAPI. En producción, la API se monta en `/api`; para un backend en otro dominio, define `VITE_API_BASE_URL` durante la compilación. `VITE_INGRESO_PATH` puede cambiar la ruta si el backend la mueve.
 
 Para la demo local, React escucha solo en `127.0.0.1:5173` y FastAPI limita CORS a ese origen por defecto. En otro despliegue, configura `VIGILIA_CORS_ORIGINS` con una lista explícita de orígenes; no uses `*` con un backend que guarda eventos.
 

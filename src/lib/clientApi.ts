@@ -1,7 +1,9 @@
-const configuredBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, "") ?? "";
+const rawConfiguredApiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const configuredApiBase = rawConfiguredApiBase?.replace(/\/+$/, "") ?? "";
+const productionApiBase = import.meta.env.PROD ? "/api" : "";
 // Keep local development cookies and requests on the browser's origin through Vite.
-const localProxy = import.meta.env.DEV && (!configuredBase || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredBase));
-const apiBase = localProxy ? "" : configuredBase;
+const localProxy = import.meta.env.DEV && (!configuredApiBase || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredApiBase));
+const apiBase = localProxy ? "" : rawConfiguredApiBase === "/" ? "" : configuredApiBase || productionApiBase;
 let csrfToken = "";
 
 export const SESSION_EXPIRED_EVENT = "vigilia:session-expired";
@@ -42,8 +44,8 @@ export async function parseApiError(response: Response): Promise<Error> {
   if (response.status === 429) return new Error(detail || "Se alcanzó el límite de solicitudes. Espera un momento.");
   // Los 422 del contrato genérico no explican nada; los de reglas propias (p. ej. contraseñas) sí.
   if (response.status === 422) return new Error(detail && detail !== "La solicitud no cumple el contrato configurado." ? detail : "Hay datos incompletos o con un formato incorrecto. Revisa los campos e inténtalo de nuevo.");
-  // FastAPI responde "Not Found" cuando la ruta no existe: el servicio es de una versión anterior a la interfaz.
-  if (response.status === 404 && (!detail || detail === "Not Found")) return new Error("Esta función no está disponible en el servicio actual. Reinicia o actualiza el backend de Vigilia.");
+  // FastAPI responde "Not Found" cuando la ruta no existe o la función API no se desplegó.
+  if (response.status === 404 && (!detail || detail === "Not Found")) return new Error("La API desplegada no encontró esta ruta. Confirma que el backend de Vigilia esté desplegado y actualizado.");
   if (response.status === 503 && detail) return new Error(detail);
   if ([502, 503, 504].includes(response.status)) return new Error("Vigilia no está disponible en este momento. Espera unos segundos y vuelve a intentarlo.");
   return new Error(detail || (response.status >= 500 ? "El servicio tuvo un problema." : "No se pudo completar la operación."));
