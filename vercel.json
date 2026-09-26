@@ -5,6 +5,8 @@
     }
   },
   "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/acceso", "destination": "/" },
     { "source": "/resumen", "destination": "/" },
     { "source": "/ingreso", "destination": "/" },
     { "source": "/actividad", "destination": "/" },
