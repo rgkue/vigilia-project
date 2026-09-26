@@ -1,0 +1,5 @@
+{
+  "name": "vigilia-panel",
+  "private": true,
+  "description": "Documentación en vivo de Vigilia: lee el README y docs/ del repositorio en cada visita (proyecto de Vercel vigilia-project, directorio raíz panel/)."
+}

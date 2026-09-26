@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 /**
- * Genera las credenciales de evaluación del jurado y las variables de Vercel de ambas instalaciones.
+ * Genera las credenciales de evaluación del jurado y las variables de Vercel de la instalación.
  *
- *   node scripts/credenciales-jurado.mjs --demo-url https://vigilia-demo.vercel.app \
- *     --produccion-url https://vigilia-app.vercel.app
+ *   node scripts/credenciales-jurado.mjs --url https://vigilia-health.vercel.app
  *
+ * Demo y Producción viven en la misma instalación (modo producción con VIGILIA_DEMO_ACCESS=true).
  * Escribe en entrega-privada/ (excluida de git):
- *   - vercel-produccion.env y vercel-demo.env: pégalos en Vercel → Settings → Environment Variables.
+ *   - vercel.env: pégalo en Vercel → Settings → Environment Variables (Production).
  *   - credenciales-jurado.md: texto para el correo al jurado.
  *   - qr-jurado-admin.png y qr-jurado-recepcion.png: QR para la app autenticadora.
- * No sobrescribe una carpeta existente salvo con --forzar (cambiar los secretos invalida los anteriores).
+ * Si ya hay credenciales generadas, las conserva (igual que la clave de IA y las URLs de Slack ya
+ * rellenadas); --nuevas crea otras, lo que invalida las que ya enviaste o configuraste.
  */
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
@@ -24,16 +25,25 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, inde
   return pairs;
 }, []));
 
-const demoUrl = String(args["demo-url"] ?? "").replace(/\/+$/, "");
-const productionUrl = String(args["produccion-url"] ?? "").replace(/\/+$/, "");
-if (!/^https:\/\/[^/]+$/.test(demoUrl) || !/^https:\/\/[^/]+$/.test(productionUrl)) {
-  console.error("Indica las dos direcciones públicas: --demo-url https://... --produccion-url https://...");
+const appUrl = String(args.url ?? "").replace(/\/+$/, "");
+if (!/^https:\/\/[^/]+$/.test(appUrl)) {
+  console.error("Indica la dirección pública de la instalación: --url https://vigilia-health.vercel.app");
   process.exit(2);
 }
-if (existsSync(outDir) && !args.forzar) {
-  console.error(`Ya existe ${outDir}. Usa --forzar solo si quieres reemplazar TODAS las credenciales del jurado.`);
-  process.exit(3);
+// Valores ya generados (vercel.env actual o los archivos de la versión con dos instalaciones).
+const previous = {};
+if (!args.nuevas) {
+  for (const name of ["vercel.env", "vercel-produccion.env"]) {
+    const file = join(outDir, name);
+    if (!existsSync(file)) continue;
+    for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+      const match = line.match(/^([A-Z_]+)=(.*)$/);
+      if (match && !match[2].startsWith("PEGA_AQUI") && !(match[1] in previous)) previous[match[1]] = match[2];
+    }
+  }
 }
+const keep = (name, fallback) => previous[name] || fallback;
+const placeholder = (name, text) => previous[name] || text;
 
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const base32 = (bytes) => {
@@ -46,73 +56,66 @@ const base32 = (bytes) => {
 };
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
 const readable = (length) => Array.from(randomBytes(length), (byte) => ALPHABET[byte % ALPHABET.length]).join("");
-const fernetKey = () => randomBytes(32).toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
 const otpauth = (id, secret) => `otpauth://totp/${encodeURIComponent(`Vigilia:${id}`)}?secret=${secret}&issuer=Vigilia&algorithm=SHA1&digits=6&period=30`;
 
-const admin = { id: "JURADO-ADMIN", totp: base32(randomBytes(20)), password: `${readable(5)}-${readable(5)}-${readable(5)}-${readable(5)}` };
-const reception = { id: "JURADO-RECEPCION", totp: base32(randomBytes(20)) };
-const ingressToken = `vig_${randomBytes(30).toString("base64url")}`;
-// Clave del webhook demo: se publica en el README para que el jurado pueda repetir la prueba.
-const demoKey = typeof args["clave-demo"] === "string" ? args["clave-demo"] : "vigilia-jurado-2026";
+const admin = {
+  id: "JURADO-ADMIN",
+  totp: keep("VIGILIA_JURY_ADMIN_TOTP", base32(randomBytes(20))),
+  password: keep("VIGILIA_JURY_ADMIN_PASSWORD", `${readable(5)}-${readable(5)}-${readable(5)}-${readable(5)}`),
+};
+const reception = { id: "JURADO-RECEPCION", totp: keep("VIGILIA_JURY_EMPLOYEE_TOTP", base32(randomBytes(20))) };
+const ingressToken = keep("VIGILIA_JURY_INGRESS_TOKEN", `vig_${randomBytes(30).toString("base64url")}`);
+// Clave del webhook del modo Demo: se publica en el README para que el jurado pueda repetir la prueba.
+const demoKey = typeof args["clave-demo"] === "string" ? args["clave-demo"] : keep("VIGILIA_KEY", "vigilia-jurado-2026");
 
-const shared = `# Enlaces del selector de modo (los dos proyectos usan los mismos valores)
-VIGILIA_DEMO_URL=${demoUrl}
-VIGILIA_PRODUCTION_URL=${productionUrl}
-# IA compartida del equipo (nunca la subas al repositorio)
-VIGILIA_SHARED_AI_PROVIDER=ollama
-VIGILIA_SHARED_AI_MODEL=gpt-oss:20b
-VIGILIA_SHARED_AI_KEY=PEGA_AQUI_TU_CLAVE_DE_OLLAMA_CLOUD
-# Avisos a Slack (URLs de tus Incoming Webhooks)
-SLACK_ENABLED=true
-SLACK_WEBHOOK_ADMISIONES=PEGA_AQUI_EL_WEBHOOK_DE_ADMISIONES
-SLACK_WEBHOOK_GESTOR=PEGA_AQUI_EL_WEBHOOK_DEL_GESTOR
-VITE_LIVE_INGRESS_ENABLED=true
-`;
-
-const productionEnv = `# Proyecto de Vercel en modo PRODUCCIÓN (${productionUrl})
+const env = `# Instalación de Vigilia en Vercel (${appUrl}): modo Producción con el modo Demo dentro.
 # Conserva DATABASE_URL, VIGILIA_SESSION_SECRET y VIGILIA_SECRET_ENCRYPTION_KEY que ya tiene el proyecto.
 VIGILIA_MODE=production
 VIGILIA_AI_APPROVED=true
+# Modo Demo sin credenciales y webhook de demostración con clave pública
+VIGILIA_DEMO_ACCESS=true
+VIGILIA_KEY=${demoKey}
+# Aseguradora y receptores de avisos simulados, conectados como integraciones
 VIGILIA_SIMULATED_SYSTEMS=true
-VIGILIA_SIMULATED_BASE_URL=${productionUrl}/api/simulado
+VIGILIA_SIMULATED_BASE_URL=${appUrl}/api/simulado
+# Cuentas y token del jurado (modo Producción)
 VIGILIA_JURY_ADMIN_PASSWORD=${admin.password}
 VIGILIA_JURY_ADMIN_TOTP=${admin.totp}
 VIGILIA_JURY_EMPLOYEE_TOTP=${reception.totp}
 VIGILIA_JURY_INGRESS_TOKEN=${ingressToken}
-${shared}`;
-
-const demoEnv = `# Proyecto de Vercel en modo DEMO (${demoUrl})
-VIGILIA_MODE=demo
-DATABASE_URL=PEGA_AQUI_LA_CADENA_DE_CONEXION_DE_LA_BASE_vigilia_demo_EN_NEON
-VIGILIA_SESSION_SECRET=${randomBytes(36).toString("base64url")}
-VIGILIA_SECRET_ENCRYPTION_KEY=${fernetKey()}
-VIGILIA_KEY=${demoKey}
-${shared}`;
+# IA compartida del equipo (nunca la subas al repositorio)
+VIGILIA_SHARED_AI_PROVIDER=ollama
+VIGILIA_SHARED_AI_MODEL=gpt-oss:20b
+VIGILIA_SHARED_AI_KEY=${placeholder("VIGILIA_SHARED_AI_KEY", "PEGA_AQUI_TU_CLAVE_DE_OLLAMA_CLOUD")}
+# Avisos a Slack (URLs de tus Incoming Webhooks)
+SLACK_ENABLED=true
+SLACK_WEBHOOK_ADMISIONES=${placeholder("SLACK_WEBHOOK_ADMISIONES", "PEGA_AQUI_EL_WEBHOOK_DE_ADMISIONES")}
+SLACK_WEBHOOK_GESTOR=${placeholder("SLACK_WEBHOOK_GESTOR", "PEGA_AQUI_EL_WEBHOOK_DEL_GESTOR")}
+VITE_LIVE_INGRESS_ENABLED=true
+`;
 
 const sheet = `# Credenciales de evaluación · Vigilia (Reto 4)
 
-Todos los datos de ambas instalaciones son ficticios.
+Aplicación: ${appUrl}. Al abrirla eliges el modo; los dos usan la misma instalación y datos ficticios.
 
 ## 1. Modo Demo (recomendado para evaluar)
-- Enlace: ${demoUrl}
-- Acceso: en "Credenciales sintéticas de demostración", pulsa **Usar QR del administrador demo** y luego **Simular inicio corporativo (demo)**. No necesita contraseña.
-- Webhook de prueba: \`POST ${demoUrl}/api/webhook/ingreso\` con la cabecera \`X-Vigilia-Key: ${demoKey}\`.
+- Elige **Demo** y pulsa **Entrar modo Demo**: entras al instante, sin usuario ni contraseña.
+- Webhook de prueba: \`POST ${appUrl}/api/webhook/ingreso\` con la cabecera \`X-Vigilia-Key: ${demoKey}\` (instrucciones en el README).
 
 ## 2. Modo Producción (cómo lo usaría un hospital)
-- Enlace: ${productionUrl}
-- Añade las cuentas a una app autenticadora (Google Authenticator, Microsoft Authenticator, Authy…) escaneando el QR adjunto o escribiendo la clave de configuración.
+Añade las cuentas a una app autenticadora (Google Authenticator, Microsoft Authenticator, Authy…) escaneando el QR adjunto o escribiendo la clave de configuración.
 
 | Cuenta | ID de acceso | Clave TOTP (configuración manual) | Contraseña |
 |---|---|---|---|
 | Administración | \`${admin.id}\` | \`${admin.totp}\` | \`${admin.password}\` |
 | Recepción | \`${reception.id}\` | \`${reception.totp}\` | No usa contraseña |
 
-Cómo entrar: pulsa "No tengo mi gafete · escribir mi ID", escribe el ID, introduce el código de 6 dígitos de la app y, en Administración, la contraseña. Si un código es rechazado, espera al siguiente (cada código sirve una sola vez).
+Cómo entrar: elige **Producción**, pulsa "No tengo mi gafete · escribir mi ID", escribe el ID, introduce el código de 6 dígitos de la app y, en Administración, la contraseña. Si un código es rechazado, espera al siguiente (cada código sirve una sola vez).
 
 Webhook con la credencial de integración del HIS simulado:
 
 \`\`\`
-POST ${productionUrl}/api/webhook/ingreso
+POST ${appUrl}/api/webhook/ingreso
 X-Vigilia-Integration: sim-ingreso-his
 Authorization: Bearer ${ingressToken}
 \`\`\`
@@ -129,11 +132,10 @@ Asegurados ficticios: 8-100-100 (asma leve), 8-200-200 (póliza vencida), 8-300-
 `;
 
 mkdirSync(outDir, { recursive: true });
-writeFileSync(join(outDir, "vercel-produccion.env"), productionEnv);
-writeFileSync(join(outDir, "vercel-demo.env"), demoEnv);
+writeFileSync(join(outDir, "vercel.env"), env);
 writeFileSync(join(outDir, "credenciales-jurado.md"), sheet);
 await QRCode.toFile(join(outDir, "qr-jurado-admin.png"), otpauth(admin.id, admin.totp), { width: 360, margin: 2 });
 await QRCode.toFile(join(outDir, "qr-jurado-recepcion.png"), otpauth(reception.id, reception.totp), { width: 360, margin: 2 });
-console.log(`Credenciales generadas en ${outDir}`);
-console.log("1) Completa los PEGA_AQUI_... de los dos .env y pégalos en cada proyecto de Vercel.");
+console.log(`Credenciales ${Object.keys(previous).length && !args.nuevas ? "actualizadas (se conservaron las existentes)" : "generadas"} en ${outDir}`);
+console.log("1) Completa los PEGA_AQUI_... de vercel.env y pégalo en las variables del proyecto de Vercel.");
 console.log("2) Envía credenciales-jurado.md y los dos QR al jurado junto con el enlace y el repositorio.");

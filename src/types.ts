@@ -127,6 +127,8 @@ export interface AgentResponse {
   reviewPending?: boolean;
   /** Cambios del resultado general tras una revisión humana, con los avisos reenviados. */
   updates?: OutcomeUpdate[];
+  /** Modo en que se originó el ingreso; Demo y Producción comparten la instalación. */
+  origin?: "demo" | "produccion";
 }
 
 export interface OutcomeUpdate {

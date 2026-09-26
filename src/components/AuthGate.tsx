@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import vigiliaLogo from "../assets/vigilia-card-nav-logo.svg";
-import { apiFetch, apiUrl, jsonRequest, parseApiError, setCsrfToken, type CurrentSession } from "../lib/clientApi";
+import { apiFetch, apiUrl, jsonRequest, parseApiError, setCsrfToken, startDemoSession, type CurrentSession } from "../lib/clientApi";
 import { QRCard, QRScanner } from "./AuthQR";
 import { Icon } from "./Icon";
 import "../auth.css";
 
 interface AuthOptions {
-  csrf_token: string; mode: "demo" | "production"; bootstrap_allowed: boolean; oidc_enabled?: boolean;
+  csrf_token: string; mode: "demo" | "production"; bootstrap_allowed: boolean; oidc_enabled?: boolean; demo_access?: boolean;
   demo_admin_badge: string | null;
   demo_employee: { employee_id: string; badge: string; uri: string } | null;
 }
@@ -123,6 +123,13 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
     finally { setBusy(false); }
   }
 
+  async function loginDemoAccess() {
+    setBusy(true); setError("");
+    try { onSession(await startDemoSession()); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo entrar en modo Demo."); }
+    finally { setBusy(false); }
+  }
+
   function resetEmployeeId() {
     setEmployeeId(""); setScannedId(false); setEmployeeStep(1); setCode(""); setFieldErrors({}); setNeedsPassword(false); setPassword(""); setError("");
   }
@@ -197,6 +204,12 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
 
         {options.bootstrap_allowed && <a className="authSwitch authBootstrap" href={apiUrl("/auth/login")}>Configurar el primer administrador</a>}
 
+        {options.mode === "production" && options.demo_access && <section className="authDemoAccess" aria-labelledby="auth-demo-access">
+          <h2 id="auth-demo-access">¿Solo quieres evaluar Vigilia?</h2>
+          <p>El modo Demo entra al instante, sin credenciales, con datos ficticios.</p>
+          <button className="secondaryButton" type="button" disabled={busy} onClick={() => void loginDemoAccess()}>Entrar en modo Demo</button>
+        </section>}
+
         {options.mode === "demo" && <details className="authDemo">
           <summary><span className="card-nav-env"><i />Demo</span>Credenciales sintéticas de demostración</summary>
           <p>Estos accesos solo existen en el entorno de demostración y usan datos ficticios.</p>
@@ -217,7 +230,7 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
         </details>}
       </>}
       <p className="authFooter"><Icon name="shield" size={14} />Acceso auditado · tus permisos se verifican en el servidor.</p>
-      {onChangeMode && <button type="button" className="authSwitch" onClick={onChangeMode}>{options?.mode === "production" ? "Instalación de producción" : "Instalación demo"} · Cambiar modo</button>}
+      {onChangeMode && <button type="button" className="authSwitch" onClick={onChangeMode}>Cambiar de modo (Demo o Producción)</button>}
     </div>
   </main>;
 }

@@ -119,7 +119,8 @@ async def notice(destino: str, request: Request) -> dict[str, Any]:
         return {"recibido": True, "reenviado_a": "registro"}
     try:
         async with httpx.AsyncClient(timeout=6, follow_redirects=False) as client:
-            (await client.post(url, json={"text": "Producción · " + message.strip()[:1500]})).raise_for_status()
+            label = "Demo · " if payload.get("origin") == "demo" else "Producción · "
+            (await client.post(url, json={"text": label + message.strip()[:1500]})).raise_for_status()
     except httpx.HTTPError as exc:
         logger.warning("El receptor simulado no pudo reenviar a Slack (%s).", type(exc).__name__)
         raise HTTPException(status_code=502, detail="El receptor no pudo entregar el aviso.") from exc

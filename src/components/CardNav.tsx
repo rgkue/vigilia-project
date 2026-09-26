@@ -8,7 +8,8 @@ export type NavAccount = {
   roleLabel: string;
   identifier: string;
   logoutPending: boolean;
-  onBadge: () => void;
+  /** Sin gafete (por ejemplo, la cuenta del modo Demo) no se muestra la opción. */
+  onBadge?: () => void;
   /** Solo para cuentas de Vigilia con contraseña. */
   onChangePassword?: () => void;
   onSignOut: () => void;
@@ -178,7 +179,7 @@ export function CardNav({ groups, sectionLabel, status, statusTone, showIntakeCt
             <span className="nav-account-name">{account.name}</span>
             <span className="nav-account-email">{account.roleLabel} · {account.identifier}</span>
             <div className="nav-card-links">
-              <button className="nav-card-link nav-account-logout" type="button" onClick={() => { closeMenu(); account.onBadge(); }}><ArrowUpRight />Mi gafete QR</button>
+              {account.onBadge && <button className="nav-card-link nav-account-logout" type="button" onClick={() => { closeMenu(); account.onBadge?.(); }}><ArrowUpRight />Mi gafete QR</button>}
               {account.onChangePassword && <button className="nav-card-link nav-account-logout" type="button" onClick={() => { closeMenu(); account.onChangePassword?.(); }}><ArrowUpRight />Cambiar contraseña</button>}
               <button className="nav-card-link nav-account-logout" type="button" onClick={() => { account.onSignOut(); closeMenu(); }} disabled={account.logoutPending}>{account.logoutPending ? "Cerrando sesión…" : "Cerrar sesión"}</button>
             </div>

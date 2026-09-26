@@ -22,7 +22,7 @@ Al pulsar **Procesar ingreso**, el frontend envía `POST /webhook/ingreso` con u
 
 La interfaz de producción usa `/api` por defecto; en Vercel, `api/index.py` monta allí la API FastAPI del repositorio. En desarrollo, Vite conserva su proxy local. Si el backend se despliega aparte, `VITE_API_BASE_URL` permite apuntar al servicio externo. Con la API disponible, la cabecera consulta `GET /health` y **Actividad reciente** lee `GET /ingresos?limite=10`.
 
-Las instalaciones públicas de evaluación son `https://vigilia-reto4-demo.vercel.app` (modo demo) y `https://vigilia-reto4.vercel.app` (producción de muestra). `GET /public-config` devuelve el modo y ambas direcciones (`demo_url`, `production_url`), que usa el selector de modo al abrir la aplicación. El despliegue se describe en [`entrega-jurado.md`](entrega-jurado.md).
+La instalación pública de evaluación es `https://vigilia-health.vercel.app`: modo producción con el modo Demo dentro (`VIGILIA_DEMO_ACCESS=true`). `GET /public-config` devuelve `mode` y `demo_access`, que usa el selector de modo al abrir la aplicación; `demo_url` y `production_url` solo se usan si los modos se despliegan por separado. En modo Demo, `POST /auth/demo-access` abre una sesión sin credenciales y el simulador envía sus escenarios a `POST /ingresos`. El despliegue se describe en [`entrega-jurado.md`](entrega-jurado.md).
 
 ## Respuesta
 
@@ -38,7 +38,7 @@ Crear `.env.local` desde `.env.example`. Para el backend local basta dejar `VITE
 
 Para la demo local, React escucha solo en `127.0.0.1:5173` y FastAPI limita CORS a ese origen por defecto. En otro despliegue, configura `VIGILIA_CORS_ORIGINS` con una lista explícita de orígenes; no uses `*` con un backend que guarda eventos.
 
-En demo, el webhook exige `X-Vigilia-Key` a los sistemas externos cuando el servidor tiene `VIGILIA_KEY`. El simulador del navegador no usa esa clave: se identifica con la sesión iniciada y su token CSRF, y necesita el permiso `ingress.submit`. No se copia `VIGILIA_KEY`, Slack ni ninguna clave de IA a variables `VITE_*`, porque quedan en el JavaScript público.
+En modo demo, y en producción con `VIGILIA_DEMO_ACCESS=true`, el webhook acepta el contrato canónico con `X-Vigilia-Key` (en producción la clave es obligatoria). Cada respuesta indica su `origen`: `demo` o `produccion`. El simulador del navegador no usa esa clave: se identifica con la sesión iniciada y su token CSRF, y necesita el permiso `ingress.submit`. No se copia `VIGILIA_KEY`, Slack ni ninguna clave de IA a variables `VITE_*`, porque quedan en el JavaScript público.
 
 Si el servicio responde `429`, la interfaz pide esperar un minuto antes de reintentar.
 

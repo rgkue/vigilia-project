@@ -93,6 +93,16 @@ def _authorize(request: Request, write: bool = False):
     return actor
 
 
+def _ensure_editable(user_id: str) -> None:
+    from .provisioning import ensure_personal_ai_editable  # import local: provisioning usa este módulo
+    ensure_personal_ai_editable(user_id)
+
+
+def _managed(user_id: str) -> bool:
+    from .provisioning import managed_ai_accounts
+    return user_id in managed_ai_accounts()
+
+
 def _definition(provider: str) -> dict:
     if provider not in CATALOG:
         raise HTTPException(404, "Proveedor desconocido.")
@@ -228,6 +238,7 @@ def settings(request: Request):
 @router.put("/providers/{provider}")
 def save(provider: str, body: ProviderInput, request: Request):
     actor = _authorize(request, True)
+    _ensure_editable(actor["id"])
     definition = _definition(provider)
     if body.auth_mode not in definition["modes"]:
         raise HTTPException(422, "Este método de autenticación no está disponible para el proveedor.")
@@ -382,11 +393,13 @@ async def test(provider: str, body: RevisionInput, request: Request):
     match_count = sum(1 for result in results if result["match"])
     # La conexión se verifica por formato válido; la coincidencia se informa aparte.
     success = valid_count == len(SYNTHETIC_TEST_CASES)
-    with db.conexion() as connection:
-        updated = connection.execute("UPDATE user_ai_configs SET status=? WHERE provider=? AND user_id=? AND revision=?",
-                                     ("verified" if success else "failed", provider, actor["id"], body.revision))
-        if updated.rowcount != 1:
-            raise HTTPException(409, "La conexión cambió durante la prueba. Vuelve a probarla.")
+    # Una cuenta administrada por el despliegue se puede probar sin que un fallo pasajero la desactive.
+    if not _managed(actor["id"]):
+        with db.conexion() as connection:
+            updated = connection.execute("UPDATE user_ai_configs SET status=? WHERE provider=? AND user_id=? AND revision=?",
+                                         ("verified" if success else "failed", provider, actor["id"], body.revision))
+            if updated.rowcount != 1:
+                raise HTTPException(409, "La conexión cambió durante la prueba. Vuelve a probarla.")
     record(actor["id"], "ai.test", "ai_provider", provider, {"success": success})
     total = len(SYNTHETIC_TEST_CASES)
     message = (f"Conexión verificada: {valid_count} de {total} respuestas con formato válido. "
@@ -399,6 +412,7 @@ async def test(provider: str, body: RevisionInput, request: Request):
 @router.put("/selection")
 def activate(body: SelectionInput, request: Request):
     actor = _authorize(request, True)
+    _ensure_editable(actor["id"])
     with db.conexion() as connection:
         if body.provider != "none":
             _definition(body.provider)

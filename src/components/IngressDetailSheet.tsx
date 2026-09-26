@@ -120,6 +120,7 @@ export function IngressDetailSheet({ entry, onClose, returnFocusRef, canReview, 
           <span className="verdictTag">{verdictLabel(entry.verdict)}</span>
           <span className={`activityLevel ${entry.administrative_level}`}>{levelLabel(entry.administrative_level)}</span>
           {entry.reviewPending && <span className="reviewBadge">Revisión pendiente</span>}
+          {entry.origin === "demo" && <span className="originBadge">Modo Demo</span>}
         </div>
         <div className="detailMeta">
           <span title={formatDate(entry.created_at)}>{relativeTime(entry.created_at)}</span>

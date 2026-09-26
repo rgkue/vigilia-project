@@ -64,7 +64,7 @@ export async function jsonRequest<T>(path: string, init: RequestInit = {}): Prom
 
 export interface CurrentSession {
   user: {
-    auth_method: "oidc" | "totp" | "password" | "demo";
+    auth_method: "oidc" | "totp" | "password" | "demo" | "demo_access";
     employee_id?: string;
     id: string;
     email: string;
@@ -89,7 +89,9 @@ export async function getSession(): Promise<CurrentSession> {
 export interface PublicConfig {
   mode: "demo" | "production";
   demo_enabled: boolean;
-  /** Direcciones públicas de las instalaciones de evaluación (selector de modo). */
+  /** Modo Demo dentro de esta misma instalación (sin credenciales). */
+  demo_access?: boolean;
+  /** Direcciones de instalaciones separadas, si existen (selector de modo). */
   demo_url?: string | null;
   production_url?: string | null;
 }
@@ -98,6 +100,22 @@ export async function getPublicConfig(): Promise<PublicConfig> {
   const response = await apiFetch("/public-config");
   if (!response.ok) throw await parseApiError(response);
   return response.json();
+}
+
+/** Entra en modo Demo: administrador demo si la instalación es demo; si no, la cuenta demo sin credenciales. */
+export async function startDemoSession(): Promise<CurrentSession> {
+  const options = await jsonRequest<{ csrf_token: string; mode: "demo" | "production"; demo_admin_badge?: string | null }>("/auth/options");
+  setCsrfToken(options.csrf_token);
+  if (options.mode === "demo" && options.demo_admin_badge) {
+    const intent = await jsonRequest<{ csrf_token: string }>("/auth/admin/qr/start", { method: "POST", body: JSON.stringify({ qr: options.demo_admin_badge }) });
+    setCsrfToken(intent.csrf_token);
+    const demoAdmin = await jsonRequest<CurrentSession>("/auth/demo-admin", { method: "POST", body: "{}" });
+    setCsrfToken(demoAdmin.csrf_token);
+    return demoAdmin;
+  }
+  const session = await jsonRequest<CurrentSession>("/auth/demo-access", { method: "POST", body: "{}" });
+  setCsrfToken(session.csrf_token);
+  return session;
 }
 
 export async function logoutSession(): Promise<void> {

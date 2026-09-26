@@ -6,53 +6,56 @@ Prototipo funcional de alerta temprana administrativa, con IA real, revisión hu
 
 La salida es administrativa: no decide atención clínica ni debe retrasarla.
 
+**Equipo:** Isaac Muñoz y Rubén Pino.
+
 ## Para el jurado
 
 | | |
 |---|---|
-| Aplicación (elige Demo o Producción al abrirla) | **https://vigilia-reto4-demo.vercel.app** |
-| Instalación de producción de muestra | https://vigilia-reto4.vercel.app |
+| Aplicación (al abrirla eliges **Demo** o **Producción**) | **https://vigilia-health.vercel.app** |
+| Documentación en vivo (este README y las guías, sin abrir GitHub) | https://vigilia-project-pi.vercel.app |
 | Repositorio | https://github.com/rgkue/vigilia-project |
 
-Todos los datos son ficticios. No hace falta instalar nada ni pedirnos claves de IA.
+Los dos modos viven en la misma instalación y usan los mismos datos ficticios. No hace falta instalar nada ni pedirnos claves de IA.
 
 ### Recorrido de 5 minutos (modo Demo)
 
-1. **Abre la aplicación.** En el selector, elige **Demo** y pulsa **Entrar modo Demo**.
-2. **Inicia sesión sin contraseña.** Abre *Credenciales sintéticas de demostración*, pulsa **Usar QR del administrador demo** y luego **Simular inicio corporativo (demo)**.
-3. **Envía un ingreso al webhook**, como lo haría el sistema del hospital. Desde una terminal:
+1. **Abre la aplicación.** En el selector, elige **Demo** y pulsa **Entrar modo Demo**. Entras al instante, sin usuario ni contraseña.
+2. **Envía un ingreso al webhook**, como lo haría el sistema del hospital. Desde una terminal, en la raíz del repositorio:
 
    ```powershell
-   Invoke-RestMethod -Method Post -Uri "https://vigilia-reto4-demo.vercel.app/api/webhook/ingreso" -ContentType "application/json; charset=utf-8" -Headers @{ "X-Vigilia-Key" = "vigilia-jurado-2026" } -InFile scripts/ejemplo-ingreso.json
+   Invoke-RestMethod -Method Post -Uri "https://vigilia-health.vercel.app/api/webhook/ingreso" -ContentType "application/json; charset=utf-8" -Headers @{ "X-Vigilia-Key" = "vigilia-jurado-2026" } -InFile scripts/ejemplo-ingreso.json
    ```
 
    ```bash
-   curl -X POST https://vigilia-reto4-demo.vercel.app/api/webhook/ingreso -H "Content-Type: application/json" -H "X-Vigilia-Key: vigilia-jurado-2026" --data-binary @scripts/ejemplo-ingreso.json
+   curl -X POST https://vigilia-health.vercel.app/api/webhook/ingreso -H "Content-Type: application/json" -H "X-Vigilia-Key: vigilia-jurado-2026" --data-binary @scripts/ejemplo-ingreso.json
    ```
 
    Para registrar otro ingreso, cambia `evento_id` en el archivo. Repetir el mismo evento devuelve la respuesta guardada sin avisar dos veces. El script [`scripts/demo-webhook.ps1`](scripts/demo-webhook.ps1) (o [`demo-webhook.sh`](scripts/demo-webhook.sh)) envía cinco escenarios de una vez:
 
    ```powershell
-   ./scripts/demo-webhook.ps1 -Url https://vigilia-reto4-demo.vercel.app -Clave vigilia-jurado-2026
+   ./scripts/demo-webhook.ps1 -Url https://vigilia-health.vercel.app -Clave vigilia-jurado-2026
    ```
 
-4. **Mira el resultado.**
+   Sin terminal, lo mismo se prueba desde **Registrar ingreso** o desde el **Simulador**.
+
+3. **Mira el resultado.**
    - La respuesta del webhook trae la póliza, cada antecedente con la sugerencia de la IA y el estado de los **dos avisos** (`ENVIADA` por `slack`).
    - En **Actividad** aparece el ingreso con su detalle.
    - Los avisos llegan a dos canales de Slack (`#vigilia-admisiones` y `#vigilia-gestor`). Las capturas están en [`docs/evidencia/`](docs/evidencia/).
-5. **Revisión humana.** Abre el ingreso en Actividad y confirma o corrige la sugerencia de la IA.
+4. **Revisión humana.** Abre el ingreso en Actividad y confirma o corrige la sugerencia de la IA.
    - Vigilia recalcula el nivel; por ejemplo, de *Revisión administrativa* a *Prioridad administrativa*.
    - Envía un **aviso de actualización** a los dos destinos.
-6. **Opcional:** el **Simulador** recorre seis escenarios desde la interfaz.
+5. **Opcional:** el **Simulador** recorre seis escenarios desde la interfaz.
 
 ### Modo Producción
 
-Muestra cómo lo usaría un hospital o una aseguradora que adopte Vigilia:
+En la misma aplicación, pulsa **Cambiar modo** en el pie de página y elige **Producción**. Muestra cómo lo usaría un hospital o una aseguradora que adopte Vigilia:
 - cuentas de personal con ID, código TOTP y contraseña, y permisos por rol;
-- integraciones con los sistemas de la aseguradora, con mapeo de campos;
+- administración de personas e integraciones con los sistemas de la aseguradora, con mapeo de campos;
 - tokens por integración y auditoría.
 
-Aquí la aseguradora y los receptores de avisos están **simulados** dentro del mismo despliegue. Las credenciales de evaluación (administrador y recepción) se envían en el correo de entrega.
+La aseguradora y los receptores de avisos están **simulados** dentro de la misma instalación. Las credenciales de evaluación (administrador y recepción) se envían en el correo de entrega.
 
 ## Qué pide el reto y dónde está
 
@@ -73,7 +76,7 @@ Aquí la aseguradora y los receptores de avisos están **simulados** dentro del 
 | Clasificación con IA | **Real**: Ollama Cloud con la clave del equipo configurada en el servidor |
 | Avisos a admisiones y gestor de casos | **Reales**, a dos canales de Slack. Sin canal configurado se marcan `SIMULADA`, nunca `ENVIADA`. |
 | Asegurados, pólizas y antecedentes | **Ficticios** (ver la lista abajo) |
-| Sistemas de la aseguradora en modo Producción | **Simulados** dentro del despliegue, con su propio formato JSON y credencial |
+| Sistemas de la aseguradora (pólizas, antecedentes y receptores de avisos) | **Simulados** dentro de la misma instalación, con su propio formato JSON y credencial; los usan los dos modos |
 
 Asegurados ficticios:
 
@@ -103,7 +106,8 @@ Personal ──▶ Interfaz React: Actividad, revisión humana, administración,
 - **Backend:** FastAPI con contratos Pydantic.
 - **Datos:** PostgreSQL con migraciones versionadas. SQLite solo para desarrollo local.
 - **Acceso humano:** cuentas de Vigilia con ID o gafete y TOTP personal. Las cuentas administrativas usan además contraseña. OIDC es opcional. Los permisos se verifican en el servidor.
-- **Acceso de sistemas:** credencial independiente por integración, revocable y rotable. En demo, clave compartida `X-Vigilia-Key`.
+- **Acceso de sistemas:** credencial independiente por integración, revocable y rotable. El modo Demo acepta además la clave pública `X-Vigilia-Key`.
+- **Modo Demo dentro de producción:** una cuenta sin credenciales (`VIGILIA_DEMO_ACCESS=true`) con permisos de operación: registrar ingresos, ver la actividad, revisar sugerencias y consultar la auditoría. La administración queda para el modo Producción.
 - **Idempotencia y reintentos:** un evento repetido devuelve la respuesta guardada. Un evento que falló o quedó interrumpido puede reenviarse con los mismos datos.
 
 ## Limitaciones conocidas
@@ -149,7 +153,7 @@ Consulta [acceso del personal](docs/employee-access.md).
 
 ## Despliegue
 
-La guía completa de las dos instalaciones de evaluación en Vercel está en [`docs/entrega-jurado.md`](docs/entrega-jurado.md). Incluye proyectos, dominios, Neon, variables y verificación.
+La guía de la instalación de evaluación en Vercel está en [`docs/entrega-jurado.md`](docs/entrega-jurado.md). Incluye variables, verificación y la página de documentación en vivo (`panel/`).
 
 El script [`scripts/credenciales-jurado.mjs`](scripts/credenciales-jurado.mjs) genera las credenciales y los bloques de variables en una carpeta que no se sube a git.
 
@@ -157,18 +161,19 @@ La aplicación arranca en modo **producción** por defecto (seguro por defecto) 
 
 | Variable | Uso |
 |---|---|
-| `VIGILIA_MODE` | `production` (por defecto) o `demo` (datos ficticios, acceso de demostración, simulador). |
+| `VIGILIA_MODE` | `production` (por defecto) o `demo` (instalación solo de demostración, útil en desarrollo local). |
+| `VIGILIA_DEMO_ACCESS` | Producción: `true` habilita el modo Demo dentro de la misma instalación (cuenta sin credenciales). |
 | `DATABASE_URL` | PostgreSQL. Las migraciones pendientes se aplican al iniciar. |
 | `VIGILIA_SESSION_SECRET` | Secreto aleatorio de al menos 32 caracteres para firmar sesiones. |
 | `VIGILIA_SECRET_ENCRYPTION_KEY` | Clave Fernet para cifrar credenciales guardadas. No la cambies después de guardar secretos. |
-| `VIGILIA_KEY` | Solo demo: clave `X-Vigilia-Key` que exige el webhook a sistemas externos. El simulador usa la sesión. |
+| `VIGILIA_KEY` | Clave `X-Vigilia-Key` del webhook de demostración (modo demo, o producción con `VIGILIA_DEMO_ACCESS=true`). La interfaz usa la sesión. |
 | `VIGILIA_AI_APPROVED` | Producción: `true` habilita la clasificación con IA tras la aprobación del cliente. |
-| `VIGILIA_SHARED_AI_KEY`, `VIGILIA_SHARED_AI_PROVIDER`, `VIGILIA_SHARED_AI_MODEL` | IA compartida del equipo para las cuentas de evaluación (demo-admin y cuentas del jurado). Por defecto `ollama` y `gpt-oss:20b`. |
+| `VIGILIA_SHARED_AI_KEY`, `VIGILIA_SHARED_AI_PROVIDER`, `VIGILIA_SHARED_AI_MODEL` | IA compartida del equipo para las cuentas de evaluación (modo Demo y cuentas del jurado). Por defecto `ollama` y `gpt-oss:20b`. Esas cuentas no pueden cambiarla desde la interfaz. |
 | `VIGILIA_DEMO_AI_OWNER` | Cuenta cuya IA clasifica el webhook demo (por defecto `demo-admin`). |
 | `SLACK_ENABLED`, `SLACK_WEBHOOK_ADMISIONES`, `SLACK_WEBHOOK_GESTOR` | Canales de aviso. En demo los usa el notificador; en producción los usan los receptores simulados. |
 | `VIGILIA_SIMULATED_SYSTEMS`, `VIGILIA_SIMULATED_BASE_URL` | Producción de muestra: aseguradora y receptores simulados, conectados como integraciones. |
 | `VIGILIA_JURY_ADMIN_PASSWORD`, `VIGILIA_JURY_ADMIN_TOTP`, `VIGILIA_JURY_EMPLOYEE_TOTP`, `VIGILIA_JURY_INGRESS_TOKEN` | Producción de muestra: cuentas y token fijos del jurado. Se restablecen en cada arranque y no se pueden modificar desde la interfaz. |
-| `VIGILIA_DEMO_URL`, `VIGILIA_PRODUCTION_URL` | Enlaces del selector de modo. |
+| `VIGILIA_DEMO_URL`, `VIGILIA_PRODUCTION_URL` | Opcional: solo si Demo y Producción se despliegan en instalaciones separadas. |
 | `VITE_LIVE_INGRESS_ENABLED` | `true` habilita el formulario de ingreso manual en la interfaz. |
 | `OIDC_*`, `VIGILIA_BOOTSTRAP_ADMIN_EMAIL` | Opcional: inicio de sesión corporativo OIDC. Define las cuatro variables `OIDC_*` o ninguna. |
 | `VIGILIA_CORS_ORIGINS`, `VIGILIA_SESSION_SAME_SITE` | Solo si frontend y API están en dominios distintos. |
@@ -206,6 +211,7 @@ backend/
   migrations/     Migraciones PostgreSQL
   tests/          Pruebas (pytest)
 src/              Interfaz React (selector de modo, acceso, actividad, administración)
+panel/            Documentación en vivo: lee este README y docs/ desde GitHub (vigilia-project-pi.vercel.app)
 scripts/          Demostración del webhook y generador de credenciales del jurado
 docs/             Entrega, guion de demostración y guías
 ```

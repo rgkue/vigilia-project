@@ -6,18 +6,18 @@ evento hospitalario → webhook → póliza y antecedentes → IA → avisos sim
 
 ## Preparación (antes de presentar)
 
-- Ten abiertos los dos canales de Slack (`#vigilia-admisiones`, `#vigilia-gestor`) y la demo con sesión iniciada.
+- Ten abiertos los dos canales de Slack (`#vigilia-admisiones`, `#vigilia-gestor`) y la aplicación en modo Demo.
 - Ten una terminal en la raíz del repositorio.
 - Comprueba que **Configuración de IA** muestra Ollama verificada y activa.
 
 ## Guion
 
 1. **El problema (20 s).** Cuando un asegurado entra a emergencias, admisiones y la aseguradora se enteran tarde y cada uno por su lado. Vigilia recibe el ingreso y avisa a ambos a la vez, con la póliza y los antecedentes ya revisados.
-2. **Selector de modo (15 s).** Abre `https://vigilia-reto4-demo.vercel.app`. Explica **Demo** (evaluación con datos ficticios) frente a **Producción** (cuentas, integraciones y auditoría como en un hospital). Entra en Demo.
+2. **Selector de modo (15 s).** Abre `https://vigilia-health.vercel.app`. Explica que la misma instalación ofrece **Demo** (se entra sin credenciales) y **Producción** (cuentas con TOTP, integraciones y auditoría, como en un hospital). Entra en Demo.
 3. **El hospital envía el ingreso (40 s).** En la terminal:
 
    ```powershell
-   ./scripts/demo-webhook.ps1 -Url https://vigilia-reto4-demo.vercel.app -Clave vigilia-jurado-2026 -Escenario asma
+   ./scripts/demo-webhook.ps1 -Url https://vigilia-health.vercel.app -Clave vigilia-jurado-2026 -Escenario asma
    ```
 
    Muestra la respuesta:
@@ -31,7 +31,7 @@ evento hospitalario → webhook → póliza y antecedentes → IA → avisos sim
 6. **Otros casos (20 s).** Ejecuta `-Escenario vencida` y luego `-Escenario no-encontrado`:
    - póliza vencida: prioridad inmediata, sin IA;
    - asegurado inexistente: se marca para verificar sin inventar datos.
-7. **Producción (20 s, opcional).** Muestra en `https://vigilia-reto4.vercel.app`:
+7. **Producción (20 s, opcional).** Pulsa **Cambiar modo → Producción**, entra con `JURADO-ADMIN` y muestra:
    - **Administración → Integraciones**: aseguradora simulada con su propio formato JSON y mapeo, token por integración y auditoría.
    - el acceso con TOTP y contraseña.
 
