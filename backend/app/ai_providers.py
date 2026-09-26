@@ -367,6 +367,8 @@ async def test(provider: str, body: RevisionInput, request: Request):
                 "actual": item.relacion if valid else "Sin resultado válido",
                 "justification": item.justificacion,
                 "valid": valid,
+                # Referencia orientativa: estos casos sirvieron para ajustar el prompt, no miden precisión.
+                "match": valid and item.relacion == case["expected"],
             })
         except (httpx.HTTPError, ValueError, RuntimeError, TypeError, AttributeError, KeyError, IndexError) as exc:
             results.append({
@@ -374,8 +376,11 @@ async def test(provider: str, body: RevisionInput, request: Request):
                 "actual": "Sin respuesta",
                 "justification": _synthetic_failure_reason(exc),
                 "valid": False,
+                "match": False,
             })
     valid_count = sum(1 for result in results if result["valid"])
+    match_count = sum(1 for result in results if result["match"])
+    # La conexión se verifica por formato válido; la coincidencia se informa aparte.
     success = valid_count == len(SYNTHETIC_TEST_CASES)
     with db.conexion() as connection:
         updated = connection.execute("UPDATE user_ai_configs SET status=? WHERE provider=? AND user_id=? AND revision=?",
@@ -383,9 +388,12 @@ async def test(provider: str, body: RevisionInput, request: Request):
         if updated.rowcount != 1:
             raise HTTPException(409, "La conexión cambió durante la prueba. Vuelve a probarla.")
     record(actor["id"], "ai.test", "ai_provider", provider, {"success": success})
-    message = (f"Los {valid_count} casos ficticios devolvieron una clasificación válida. Revisa las etiquetas; esto no valida precisión clínica."
-               if success else f"{valid_count} de {len(SYNTHETIC_TEST_CASES)} casos ficticios devolvieron una clasificación válida. Revisa el detalle.")
-    return {"ok": success, "message": message, "cases": results}
+    total = len(SYNTHETIC_TEST_CASES)
+    message = (f"Conexión verificada: {valid_count} de {total} respuestas con formato válido. "
+               f"Coincidencia con la etiqueta de referencia: {match_count} de {total}. "
+               "Estos casos sirvieron para ajustar las instrucciones; no miden precisión clínica."
+               if success else f"{valid_count} de {total} casos ficticios devolvieron una clasificación válida. Revisa el detalle.")
+    return {"ok": success, "message": message, "cases": results, "valid_count": valid_count, "match_count": match_count}
 
 
 @router.put("/selection")

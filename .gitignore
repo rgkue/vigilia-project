@@ -15,3 +15,6 @@ __pycache__/
 
 backend/.local-dev/
 *.employee-auth.key
+
+# Credenciales del jurado y variables de Vercel generadas localmente
+entrega-privada/

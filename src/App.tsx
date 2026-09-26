@@ -6,6 +6,7 @@ import { CardNav, type NavGroup } from "./components/CardNav";
 import { Sheet } from "./components/Dialogs";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { IngressDetailSheet } from "./components/IngressDetailSheet";
+import { ModeSelector, readModeChoice } from "./components/ModeSelector";
 import { PasswordChangeForm, PasswordChangeGate } from "./components/PasswordChange";
 import { useToast } from "./components/Toast";
 import { demoCases, makeDemoEvent } from "./data/demoCases";
@@ -79,6 +80,9 @@ function App() {
   const toast = useToast();
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.pathname));
   const [serverMode, setServerMode] = useState<"demo" | "production" | null>(isBackendConfigured ? null : "demo");
+  // Selector Demo / Producción al abrir la web; se decide cuando se conoce el modo del servidor.
+  const [modeChosen, setModeChosen] = useState(true);
+  const [installationUrls, setInstallationUrls] = useState<{ demo: string | null; production: string | null }>({ demo: null, production: null });
   const [session, setSession] = useState<CurrentSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(isBackendConfigured);
   const [authError, setAuthError] = useState("");
@@ -143,6 +147,8 @@ function App() {
         const config = await getPublicConfig();
         if (cancelled) return;
         setServerMode(config.mode);
+        setInstallationUrls({ demo: config.demo_url ?? null, production: config.production_url ?? null });
+        setModeChosen(readModeChoice(config.mode));
         try {
           const nextSession = await getSession();
           if (!cancelled) setSession(nextSession);
@@ -286,8 +292,10 @@ function App() {
   }
 
   async function resolveClassification(eventId: string, index: number, relation: Exclude<JevRelation, "PENDIENTE">, reason: string) {
-    await reviewClassification(eventId, index, relation, reason);
-    toast.success("Revisión guardada y registrada en la auditoría.");
+    const outcome = await reviewClassification(eventId, index, relation, reason);
+    toast.success(outcome.resultado_actualizado
+      ? "Revisión guardada. El resultado se recalculó y se avisó otra vez a admisiones y al gestor de casos."
+      : "Revisión guardada y registrada en la auditoría.");
     const updated = await loadIngressEntry(eventId).catch(() => null);
     if (updated) setSelectedActivity(updated);
     setRefreshKey((key) => key + 1);
@@ -415,13 +423,16 @@ function App() {
             ? "Tu perfil no tiene permiso para registrar ingresos manualmente."
             : "Servicio conectado. Revisa la información antes de enviarla.";
 
+  const modeGate = !modeChosen && <ModeSelector currentMode={serverMode} demoUrl={installationUrls.demo} productionUrl={installationUrls.production} onEnter={() => setModeChosen(true)} />;
+  const changeMode = () => setModeChosen(false);
+
   if (session?.user.must_change_password) {
-    return <PasswordChangeGate session={session} signingOut={logoutPending} onSignOut={() => void signOut()}
-      onSession={(next) => { setSession(next); toast.success("Contraseña guardada. Ya puedes usar Vigilia."); replaceRoute({ section: "overview" }); }} />;
+    return <>{modeGate}<PasswordChangeGate session={session} signingOut={logoutPending} onSignOut={() => void signOut()}
+      onSession={(next) => { setSession(next); toast.success("Contraseña guardada. Ya puedes usar Vigilia."); replaceRoute({ section: "overview" }); }} /></>;
   }
 
   if (sessionLoading || (isBackendConfigured && !session)) {
-    return <AuthGate loading={sessionLoading} error={authError} notice={authNotice} onSession={(next) => { setSession(next); setServerMode(next.mode); setAuthError(""); setAuthNotice(""); replaceRoute({ section: "overview" }); }} />;
+    return <>{modeGate}<AuthGate loading={sessionLoading} error={authError} notice={authNotice} onChangeMode={serverMode ? changeMode : undefined} onSession={(next) => { setSession(next); setServerMode(next.mode); setAuthError(""); setAuthNotice(""); replaceRoute({ section: "overview" }); }} /></>;
   }
 
   const adminTab = route.adminTab ?? allowedAdminTabs[0];
@@ -453,6 +464,7 @@ function App() {
 
   return (
     <div className="appFrame clientAppFrame">
+      {modeGate}
       <a className="skipLink" href="#main">Saltar al contenido</a>
       <div className="ambient ambientOne" aria-hidden="true" />
       <div className="ambient ambientTwo" aria-hidden="true" />
@@ -532,7 +544,10 @@ function App() {
         <footer className="pageFooter clientFooter">
           <span className="footerBrand">Vigilia</span>
           <span>Coordinación administrativa de ingresos</span>
-          <span className={`footerEnv ${serverMode === "production" ? "prod" : "demo"}`}>{serverMode === "production" ? "Producción" : "Demo · datos ficticios"}</span>
+          <span className="footerModeActions">
+            <span className={`footerEnv ${serverMode === "production" ? "prod" : "demo"}`}>{serverMode === "production" ? "Producción" : "Demo · datos ficticios"}</span>
+            <button className="modeSwitchButton" type="button" onClick={changeMode}>Cambiar modo</button>
+          </span>
         </footer>
       </main>
     </div>

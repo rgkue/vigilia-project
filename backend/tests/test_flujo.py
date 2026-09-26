@@ -65,19 +65,24 @@ class FlowCompatibilityTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200, response.text)
             data = response.json()
             self.assertEqual(data["veredicto"], expected)
-            self.assertEqual({item["estado"] for item in data["notificaciones"]}, {"ENVIADA"})
+            # Sin Slack configurado nada sale del servidor: el aviso queda como simulado.
+            self.assertEqual({item["estado"] for item in data["notificaciones"]}, {"SIMULADA"})
             self.assertEqual({item["canal"] for item in data["notificaciones"]}, {"log"})
         self.assertEqual(len(self.client.get("/ingresos").json()), len(CASES))
 
     def test_optional_api_key_is_still_enforced_when_configured(self):
         with patch.dict(os.environ, {"VIGILIA_KEY": "flow-test-key"}, clear=False):
-            self.assertEqual(self.client.post("/webhook/ingreso", json=event(1, "8-100-100", "Fractura")).status_code, 401)
-            response = self.client.post(
-                "/webhook/ingreso",
-                json=event(2, "8-100-100", "Fractura"),
-                headers={"X-Vigilia-Key": "flow-test-key"},
-            )
+            with TestClient(app) as external:
+                self.assertEqual(external.post("/webhook/ingreso", json=event(1, "8-100-100", "Fractura")).status_code, 401)
+                response = external.post(
+                    "/webhook/ingreso",
+                    json=event(2, "8-100-100", "Fractura"),
+                    headers={"X-Vigilia-Key": "flow-test-key"},
+                )
+            # El simulador del navegador usa la sesión autenticada en lugar de la clave.
+            simulator = self.client.post("/webhook/ingreso", json=event(3, "8-100-100", "Fractura"))
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(simulator.status_code, 200)
 
     def test_rate_limit_still_caps_at_twenty_requests(self):
         responses = [

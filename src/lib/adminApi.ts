@@ -125,8 +125,14 @@ export const updateLocalAccount = (id: string, body: { display_name: string; act
 export const issueLocalTotp = (id: string) => jsonRequest<{ uri: string; secret: string }>(accountPath(id, "/totp"), { method: "POST", body: "{}" });
 export const issueTemporaryPassword = (id: string) => jsonRequest<{ temporary_password: string }>(accountPath(id, "/password"), { method: "POST", body: "{}" });
 
+export interface ReviewOutcome {
+  resultado_actualizado?: boolean;
+  veredicto?: string;
+  nivel_alerta?: string;
+}
+
 export function reviewClassification(eventId: string, index: number, relation: string, reason: string) {
-  return jsonRequest(`/ingresos/${encodeURIComponent(eventId)}/clasificaciones/${index}/revision`, {
+  return jsonRequest<ReviewOutcome>(`/ingresos/${encodeURIComponent(eventId)}/clasificaciones/${index}/revision`, {
     method: "POST",
     body: JSON.stringify({ relation, reason }),
   });

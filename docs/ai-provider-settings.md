@@ -15,10 +15,16 @@ el uso y configure `VIGILIA_AI_APPROVED=true`; dar a una cuenta permiso de edici
    Para ChatGPT / Codex o SuperGrok, elige **Suscripción · OAuth**, guarda y pulsa **Conectar**.
 3. Abre la página oficial de autorización. La contraseña se introduce únicamente allí.
 4. Consulta modelos, selecciona uno y guarda los cambios.
-5. Ejecuta **Probar con datos ficticios** y después **Activar clasificación**.
+5. Ejecuta **Probar 3 casos ficticios** y después **Activar clasificación**.
 
-La prueba hace una llamada real usando solo un caso sintético y puede consumir cuota.
-Confirma compatibilidad básica; no mide precisión clínica ni disponibilidad permanente.
+La prueba hace tres llamadas reales con casos sintéticos y puede consumir cuota.
+La conexión se verifica si las tres respuestas tienen un formato válido. La coincidencia con la
+etiqueta de referencia se informa aparte y es orientativa: esos casos sirvieron para ajustar las
+instrucciones, así que no miden precisión clínica ni disponibilidad permanente.
+
+En las instalaciones de evaluación, el operador puede cargar una clave compartida del equipo
+(`VIGILIA_SHARED_AI_KEY`); Vigilia la deja guardada, cifrada y activa en `demo-admin` y en las
+cuentas del jurado para que nadie tenga que aportar su propia clave.
 Una modificación invalida la prueba anterior. Si faltan credenciales, falla el proveedor,
 se desactiva la cuenta o caduca la conexión, la clasificación queda pendiente. No se utiliza
 la conexión de otra persona como alternativa.

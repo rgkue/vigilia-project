@@ -12,6 +12,8 @@ export interface AISettings {
 export interface AIProviderTestCase {
   id: string; label: string; motive: string; condition: string;
   expected: string; actual: string; justification: string; valid: boolean;
+  /** Coincide con la etiqueta de referencia; es orientativo y no mide precisión clínica. */
+  match?: boolean;
 }
 const path = (id: string) => `/me/ai/providers/${encodeURIComponent(id)}`;
 export const getAISettings = () => jsonRequest<AISettings>("/me/ai");

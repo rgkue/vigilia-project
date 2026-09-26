@@ -211,6 +211,8 @@ def create_employee(body: EmployeeInput, request: Request):
 @router.put("/{user_id}")
 def update_employee(user_id: str, body: EmployeeUpdate, request: Request):
     actor = authorize(request, True)
+    from .provisioning import ensure_mutable_account  # import local: provisioning importa este módulo
+    ensure_mutable_account(user_id)
     if user_id == actor["id"] and not body.active:
         raise HTTPException(409, "No puedes desactivar tu propia cuenta.")
     with db.conexion() as connection:
@@ -242,6 +244,8 @@ def update_employee(user_id: str, body: EmployeeUpdate, request: Request):
 @router.post("/{user_id}/totp")
 def issue_totp(user_id: str, request: Request, response: Response):
     actor = authorize(request, True)
+    from .provisioning import ensure_mutable_account  # import local: provisioning importa este módulo
+    ensure_mutable_account(user_id)
     secret = new_totp_secret()
     encrypted = cipher().encrypt(secret.encode()).decode()
     with db.conexion() as connection:
@@ -257,6 +261,8 @@ def issue_totp(user_id: str, request: Request, response: Response):
 @router.post("/{user_id}/password")
 def issue_temporary_password(user_id: str, request: Request, response: Response):
     actor = authorize(request, True)
+    from .provisioning import ensure_mutable_account  # import local: provisioning importa este módulo
+    ensure_mutable_account(user_id)
     if user_id == actor["id"]:
         raise HTTPException(409, "Cambia tu propia contraseña desde Mi cuenta.")
     temporary = local_accounts.generate_temporary_password()

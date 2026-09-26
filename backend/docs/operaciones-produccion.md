@@ -5,9 +5,9 @@ Cada cliente usa una instalación aislada en su infraestructura. La instancia no
 ## Arranque e identidad
 
 1. Configura PostgreSQL con cifrado en tránsito y en reposo, controles de red y una identidad de servicio con los permisos mínimos.
-2. Entrega las variables del backend desde el gestor de secretos. `VIGILIA_MODE` por defecto es `production`; PostgreSQL, OIDC, el correo de aprovisionamiento inicial, la clave de sesión y la clave de cifrado son obligatorios.
-3. Registra `/auth/callback` como retorno OIDC y configura el frontend para usar el mismo origen o define el origen web, CORS y `VIGILIA_SESSION_SAME_SITE` según el despliegue.
-4. El primer inicio de sesión solo crea el perfil administrador si el correo verificado coincide con `VIGILIA_BOOTSTRAP_ADMIN_EMAIL`. El administrador puede autorizar identidades existentes en el IdP, asignar roles y permisos del catálogo y desactivar perfiles. No se almacenan contraseñas del IdP.
+2. Entrega las variables del backend desde el gestor de secretos. `VIGILIA_MODE` por defecto es `production`; PostgreSQL, la clave de sesión y la clave de cifrado son obligatorios. OIDC es opcional.
+3. Crea el primer administrador con `python -m app.bootstrap_admin --id ADMIN-01 --name "…"` (cuenta de Vigilia con TOTP y contraseña temporal). Si la organización usa OIDC, define las cuatro variables `OIDC_*`, registra `/auth/callback` como retorno y usa `VIGILIA_BOOTSTRAP_ADMIN_EMAIL` para el primer perfil corporativo. Configura el frontend en el mismo origen o define el origen web, CORS y `VIGILIA_SESSION_SAME_SITE` según el despliegue.
+4. El administrador crea las demás cuentas en **Administración → Personas**, asigna roles y permisos del catálogo y desactiva perfiles. Las contraseñas se guardan con scrypt; con OIDC no se almacenan contraseñas del IdP.
 5. Comprueba que un perfil sin acceso, una sesión vencida y permisos insuficientes son rechazados por el backend.
 
 El backend aplica migraciones PostgreSQL versionadas al iniciar. Las migraciones se ejecutan en orden y se registran en `schema_migrations`. Haz respaldo antes de cada actualización; no hay migraciones de reversa automáticas.

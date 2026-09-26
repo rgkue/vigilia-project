@@ -70,13 +70,14 @@ El correo `VIGILIA_BOOTSTRAP_ADMIN_EMAIL` puede completar una primera entrada
 con OIDC sin QR. Esta excepción se consume una sola vez en la base. En una
 instalación existente ese mismo correo puede usarla para obtener su gafete.
 Al entrar, abre **Mi gafete QR** y descárgalo antes de cerrar sesión.
-Los siguientes accesos exigen QR y OIDC. En Usuarios y permisos, una persona
+En las instalaciones que usan OIDC, los siguientes accesos de esos perfiles
+corporativos exigen QR y OIDC. En Usuarios y permisos, una persona
 con `users.manage` puede descargar el QR de los demás perfiles corporativos.
 Un QR copiado por sí solo no permite acceder sin la identidad OIDC correcta.
 
 Si el último administrador pierde su gafete, TI puede recuperar su ID interno
-desde `user_profiles` y generar localmente el QR `vigilia:admin:<id>`; la cuenta
-OIDC sigue siendo obligatoria. No se necesita reabrir la excepción inicial.
+desde `user_profiles` y generar localmente el QR `vigilia:admin:<id>`; para un perfil
+corporativo, la cuenta OIDC sigue siendo necesaria. No se necesita reabrir la excepción inicial.
 Sin OIDC, las cuentas administrativas son cuentas de Vigilia con contraseña y TOTP.
 La simulación corporativa solo existe en demo.
 

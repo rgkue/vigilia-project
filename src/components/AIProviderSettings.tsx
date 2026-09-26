@@ -147,12 +147,12 @@ export function AIProviderSettings() {
             </div>
           {testCases.length > 0 && <section className="aiTestResults" aria-live="polite" aria-label="Resultados de casos ficticios">
             <h3>Resultados de la prueba</h3>
-            <p>Salida real del modelo para ejemplos inventados. La etiqueta esperada sirve como referencia y requiere revisión humana.</p>
+            <p>Salida real del modelo para ejemplos inventados. La conexión se verifica si las respuestas tienen un formato válido; la coincidencia con la etiqueta de referencia es orientativa, porque estos casos sirvieron para ajustar las instrucciones.</p>
             <div className="aiTestCaseList">{testCases.map((testCase) => <article className="aiTestCase" key={testCase.id}>
               <header><strong>{testCase.label}</strong><span className={testCase.valid ? "aiTestValid" : "aiTestInvalid"}>{testCase.valid ? "Respuesta válida" : "Sin respuesta válida"}</span></header>
               <p><b>Ingreso:</b> {testCase.motive}</p>
               <p><b>Condición:</b> {testCase.condition}</p>
-              <p><b>Esperado:</b> {testCase.expected} · <b>Modelo:</b> {testCase.actual}</p>
+              <p><b>Referencia:</b> {testCase.expected} · <b>Modelo:</b> {testCase.actual}{testCase.valid && testCase.match !== undefined ? ` · ${testCase.match ? "Coincide" : "No coincide"}` : ""}</p>
               <p><b>{testCase.valid ? "Justificación del modelo" : "Detalle del fallo"}:</b> {testCase.justification}</p>
             </article>)}</div>
           </section>}

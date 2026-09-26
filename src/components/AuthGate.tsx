@@ -13,7 +13,7 @@ interface AuthOptions {
 
 type AccessPath = "employee" | "admin";
 
-export function AuthGate({ loading, error: initialError, notice = "", onSession }: { loading: boolean; error: string; notice?: string; onSession: (session: CurrentSession) => void }) {
+export function AuthGate({ loading, error: initialError, notice = "", onSession, onChangeMode }: { loading: boolean; error: string; notice?: string; onSession: (session: CurrentSession) => void; onChangeMode?: () => void }) {
   const [options, setOptions] = useState<AuthOptions | null>(null);
   const [path, setPath] = useState<AccessPath>("employee");
   const [employeeId, setEmployeeId] = useState("");
@@ -217,6 +217,7 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession 
         </details>}
       </>}
       <p className="authFooter"><Icon name="shield" size={14} />Acceso auditado · tus permisos se verifican en el servidor.</p>
+      {onChangeMode && <button type="button" className="authSwitch" onClick={onChangeMode}>{options?.mode === "production" ? "Instalación de producción" : "Instalación demo"} · Cambiar modo</button>}
     </div>
   </main>;
 }

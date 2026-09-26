@@ -17,6 +17,10 @@ from .secret_store import decrypt, encrypt
 router = APIRouter(prefix="/admin/integrations", tags=["integrations"])
 SUPPORTED_KINDS = {"ingress", "coverage", "history", "admissions", "case_manager"}
 MAX_CONNECTOR_RESPONSE = 1_000_000
+# Margen para un arranque en frío del sistema remoto (p. ej. una función serverless).
+CONNECTOR_TIMEOUT_SECONDS = 12
+# Credencial de ingreso entregada al jurado (ver provisioning); se conserva al emitir otras.
+JURY_CREDENTIAL_ID = "sim-ingreso-jurado"
 CANONICAL_FIELDS = {
     "ingress": {"evento_id", "cedula", "hospital", "motivo_ingreso", "triage", "fecha_ingreso"},
     "coverage": {"cedula", "numero", "plan", "vigente_desde", "vigente_hasta", "estado_pago", "carencia_dias"},
@@ -189,7 +193,7 @@ async def lookup(kind: str, value: str) -> tuple[Any, str]:
     parameters = {config["lookup_parameter"]: value}
     try:
         kwargs = {"headers": _secret_headers(config)}
-        async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
+        async with httpx.AsyncClient(timeout=CONNECTOR_TIMEOUT_SECONDS, follow_redirects=False) as client:
             if config["method"] == "POST":
                 response_context = client.stream("POST", url, json=parameters, **kwargs)
             else:
@@ -317,6 +321,8 @@ def create_integration(body: IntegrationInput, request: Request, x_csrf_token: s
 def update_integration(integration_id: str, body: IntegrationInput, request: Request, x_csrf_token: str | None = Header(default=None)):
     actor = security.require_permission(request, "integrations.manage")
     security.require_csrf(request, x_csrf_token)
+    from .provisioning import ensure_mutable_integration  # import local: provisioning depende de este módulo
+    ensure_mutable_integration(integration_id)
     _mapping_is_valid(body.kind, body.field_map)
     now = datetime.now(timezone.utc)
     with db.conexion() as connection:
@@ -342,6 +348,8 @@ def update_integration(integration_id: str, body: IntegrationInput, request: Req
 def disable_integration(integration_id: str, request: Request, x_csrf_token: str | None = Header(default=None)):
     actor = security.require_permission(request, "integrations.manage")
     security.require_csrf(request, x_csrf_token)
+    from .provisioning import ensure_mutable_integration  # import local: provisioning depende de este módulo
+    ensure_mutable_integration(integration_id)
     with db.conexion() as connection:
         cursor = connection.execute(
             "UPDATE integration_configs SET enabled = FALSE, status = 'not_configured', updated_at = ?, updated_by = ? WHERE id = ?",
@@ -363,7 +371,7 @@ async def test_integration(integration_id: str, request: Request, x_csrf_token: 
         raise HTTPException(status_code=404, detail="No se encontró la integración.")
     status, message = "connected", None
     try:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
+        async with httpx.AsyncClient(timeout=CONNECTOR_TIMEOUT_SECONDS, follow_redirects=False) as client:
             headers = _secret_headers(dict(config))
             if config["method"] == "POST":
                 response_context = client.stream("POST", config["endpoint_url"], json={config["lookup_parameter"]: "VIGILIA_TEST"}, headers=headers)
@@ -398,8 +406,8 @@ def issue_credential(integration_id: str, request: Request, x_csrf_token: str | 
     credential_id = __import__("uuid").uuid4().hex
     with db.conexion() as connection:
         connection.execute(
-            "UPDATE api_credentials SET active = FALSE, revoked_at = ? WHERE integration_id = ? AND active = TRUE",
-            (now, integration_id),
+            "UPDATE api_credentials SET active = FALSE, revoked_at = ? WHERE integration_id = ? AND active = TRUE AND id <> ?",
+            (now, integration_id, JURY_CREDENTIAL_ID),
         )
         connection.execute(
             "INSERT INTO api_credentials (id, integration_id, secret_hash, active, created_at) VALUES (?, ?, ?, TRUE, ?)",
@@ -429,6 +437,8 @@ def revoke_credential(integration_id: str, credential_id: str, request: Request,
                       x_csrf_token: str | None = Header(default=None)):
     actor = security.require_permission(request, "integrations.manage")
     security.require_csrf(request, x_csrf_token)
+    if credential_id == JURY_CREDENTIAL_ID:
+        raise HTTPException(status_code=409, detail="La credencial de evaluación del jurado la administra el despliegue.")
     now = datetime.now(timezone.utc)
     with db.conexion() as connection:
         cursor = connection.execute(

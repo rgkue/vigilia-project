@@ -22,13 +22,13 @@ Al pulsar **Procesar ingreso**, el frontend envía `POST /webhook/ingreso` con u
 
 La interfaz de producción usa `/api` por defecto; en Vercel, `api/index.py` monta allí la API FastAPI del repositorio. En desarrollo, Vite conserva su proxy local. Si el backend se despliega aparte, `VITE_API_BASE_URL` permite apuntar al servicio externo. Con la API disponible, la cabecera consulta `GET /health` y **Actividad reciente** lee `GET /ingresos?limite=10`.
 
-GitHub registra actualmente el servicio `Production – vigilia-api` en [`https://vigilia-5k24gdyol-rgkue.vercel.app`](https://vigilia-5k24gdyol-rgkue.vercel.app). Esa es una URL observada en el despliegue, aún pendiente de verificación desde el frontend y de confirmar como dominio estable; no se configura como predeterminada.
+Las instalaciones públicas de evaluación son `https://vigilia-reto4-demo.vercel.app` (modo demo) y `https://vigilia-reto4.vercel.app` (producción de muestra). `GET /public-config` devuelve el modo y ambas direcciones (`demo_url`, `production_url`), que usa el selector de modo al abrir la aplicación. El despliegue se describe en [`entrega-jurado.md`](entrega-jurado.md).
 
 ## Respuesta
 
-La API devuelve `evento_id`, `veredicto`, `nivel_alerta`, `poliza`, `preexistencias`, `mensaje_admisiones`, `mensaje_gestor` y `notificaciones`. Los valores posibles de `veredicto` son `VALIDA`, `VALIDA_CON_ALERTAS`, `NO_VALIDA` y `NO_ENCONTRADO`; los niveles son `BAJO`, `MEDIO` y `ALTO`.
+La API devuelve `evento_id`, `veredicto`, `nivel_alerta`, `poliza`, `preexistencias`, `mensaje_admisiones`, `mensaje_gestor` y `notificaciones`. Los valores posibles de `veredicto` son `VALIDA`, `VALIDA_CON_ALERTAS`, `NO_VALIDA`, `NO_ENCONTRADO` y `PENDIENTE` (una fuente de producción falló o no está configurada); los niveles son `BAJO`, `MEDIO` y `ALTO`. Tras una revisión humana que cambia el resultado, `actualizaciones` registra el cambio y los avisos reenviados.
 
-Las notificaciones tienen un `destino`, un `canal` y un `estado`. El frontend muestra por separado el canal y el resultado. El módulo publicado `backend/app/notifier.py` inicia ambos envíos en paralelo con `asyncio.gather`; sin URL de Slack, devuelve `canal: "log"` y `estado: "ENVIADA"` para cada aviso simulado. La copia local además requiere `SLACK_ENABLED=true` y un webhook configurado para enviar a Slack; su valor predeterminado es `false`. La interfaz identifica `log` como simulación del servidor; para `canal: "slack"`, muestra `ENVIADA` o el error reportado.
+Las notificaciones tienen un `destino`, un `canal` y un `estado`. El frontend muestra por separado el canal y el resultado. `backend/app/notifier.py` inicia ambos envíos en paralelo con `asyncio.gather`. En demo envía a Slack si `SLACK_ENABLED=true` y hay webhooks configurados; sin ellos devuelve `canal: "log"` y `estado: "SIMULADA"`, nunca `ENVIADA`. En producción envía a las integraciones `admissions` y `case_manager` y devuelve `ENVIADA`, `ERROR` o `NO_CONFIGURADA`.
 
 El backend local prioriza Kev (VIGILIA_AI_PROVIDER=kev) y también integra el proveedor Groq de origin/main (VIGILIA_AI_PROVIDER=groq). No cambia de proveedor automáticamente. Las salidas de Jev, Kev y Groq se normalizan en la interfaz a una clasificación interna con condición, relación, probabilidad opcional, explicación, origen y marca de revisión humana. El contrato FastAPI conserva PreexistenciaRelacionada.relacion limitado a DIRECTA, POSIBLE y NINGUNA; PENDIENTE es un estado de interfaz derivado del prefijo Revisión humana pendiente:. Las respuestas inválidas y el respaldo de reglas opcional también quedan pendientes. Ninguna sugerencia se convierte en una decisión clínica ni administrativa.
 
@@ -38,13 +38,13 @@ Crear `.env.local` desde `.env.example`. Para el backend local basta dejar `VITE
 
 Para la demo local, React escucha solo en `127.0.0.1:5173` y FastAPI limita CORS a ese origen por defecto. En otro despliegue, configura `VIGILIA_CORS_ORIGINS` con una lista explícita de orígenes; no uses `*` con un backend que guarda eventos.
 
-El backend acepta la clave `X-Vigilia-Key` solo cuando el servidor tiene `VIGILIA_KEY` configurada. El navegador no envía esa clave: todas las variables `VITE_*` quedan incluidas en el JavaScript público. Si el despliegue de demostración exige clave, el equipo debe habilitar una integración pública acotada o un proxy de servidor; no se debe copiar `VIGILIA_KEY`, Anthropic ni Slack al frontend.
+En demo, el webhook exige `X-Vigilia-Key` a los sistemas externos cuando el servidor tiene `VIGILIA_KEY`. El simulador del navegador no usa esa clave: se identifica con la sesión iniciada y su token CSRF, y necesita el permiso `ingress.submit`. No se copia `VIGILIA_KEY`, Slack ni ninguna clave de IA a variables `VITE_*`, porque quedan en el JavaScript público.
 
-Si el historial o el webhook responde `401`, la interfaz indica que la clave no debe exponerse en el navegador y que se necesita una ruta pública acotada o un proxy seguro. Si el servicio responde `429`, pide esperar un minuto antes de reintentar.
+Si el servicio responde `429`, la interfaz pide esperar un minuto antes de reintentar.
 
 ## Alcance de la demo
 
-- Sin URL de API, los seis escenarios se simulan localmente; no se llama al backend ni a Slack.
+- El simulador solo existe en modo demo. En desarrollo sin backend, los seis escenarios se simulan en el navegador; con backend, cada escenario se envía al webhook demo.
 - Con URL configurada, solo se envía un evento cuando alguien pulsa el botón. No hay envío ni reintento automático.
-- El backend guarda los eventos procesados. El backend publicado puede enviar a Slack si existen webhooks configurados; la copia local también exige `SLACK_ENABLED=true`. `canal: "log"` indica que el aviso se simuló en el servidor.
+- El backend guarda los eventos procesados. Envía a Slack si `SLACK_ENABLED=true` y hay webhooks configurados; si no, el aviso queda como `SIMULADA` (`canal: "log"`).
 - Usar solo los datos sintéticos de los fixtures. El resultado es una señal administrativa: no hace triage clínico ni decide si una persona recibe atención.

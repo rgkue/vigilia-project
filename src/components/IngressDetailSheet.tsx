@@ -81,6 +81,11 @@ function timeline(entry: AgentResponse, reviewerName: (id: string | null | undef
       detail: `Admisiones: ${notificationLabel(entry.notifications.admissions).toLowerCase()} · Gestor de casos: ${notificationLabel(entry.notifications.case_manager).toLowerCase()}`,
       tone: failedDelivery ? "warn" : "done",
     },
+    ...(entry.updates ?? []).map((update) => ({
+      title: "Resultado actualizado tras revisión",
+      detail: `${levelLabel(update.previousLevel)} → ${levelLabel(update.level)} · ${formatDate(update.at ?? undefined)} · Admisiones: ${notificationLabel(update.notifications.admissions).toLowerCase()} · Gestor de casos: ${notificationLabel(update.notifications.case_manager).toLowerCase()}`,
+      tone: [update.notifications.admissions, update.notifications.case_manager].some((item) => item.status === "failed" || item.status === "not_configured") ? "warn" as const : "done" as const,
+    })),
     {
       title: "Revisión humana",
       detail: total === 0
@@ -130,7 +135,7 @@ export function IngressDetailSheet({ entry, onClose, returnFocusRef, canReview, 
       {canReview && entry.classifications.some((classification) => classification.reviewRequired) && <section className="classificationReviewSection">
         <span className="eyebrow">REVISIÓN HUMANA</span>
         <h3>Resolución de sugerencias</h3>
-        <p>La resolución queda auditada y no modifica avisos que ya fueron enviados.</p>
+        <p>La resolución queda auditada. Si cambia el resultado general, Vigilia recalcula el nivel y envía un aviso de actualización a admisiones y al gestor de casos.</p>
         {entry.classifications.map((classification, index) => classification.reviewRequired && <ClassificationReviewCard key={`${classification.condition}-${index}`} classification={classification} index={index} reviewerName={reviewerName} onReview={(classificationIndex, relation, reason) => onReview(entry.event_id, classificationIndex, relation, reason)} />)}
       </section>}
     </Sheet>

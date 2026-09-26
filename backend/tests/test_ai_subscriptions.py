@@ -1,5 +1,6 @@
 """OAuth lifecycle and inference tests with fictitious authorizations only."""
 import asyncio
+import json
 import time
 from unittest.mock import AsyncMock
 
@@ -97,8 +98,20 @@ def test_inference_has_no_tools_and_cleans_session(client, monkeypatch, fails):
     with db.conexion() as conn:
         conn.execute("INSERT INTO user_ai_oauth (user_id,provider,flow_id,actor_id,status,expires_at) VALUES ('test-admin','openai','fixture-flow','test-admin','connected',0)")
     monkeypatch.setattr(oauth, "models", AsyncMock(return_value=["test-model"]))
-    text = completion()["choices"][0]["message"]["content"]
-    mock = AsyncMock(side_effect=[{"id": "fixture-session"}, ValueError("offline") if fails else {"info": {"finish": "stop"}, "parts": [{"type": "text", "text": text}]}, True, True])
+    async def bridge(method, path, body=None, **kwargs):
+        # Una sesión por cada caso ficticio de la prueba: crear, clasificar, abortar y borrar.
+        if path == "/session":
+            return {"id": "fixture-session"}
+        if path.endswith("/message"):
+            if fails:
+                raise ValueError("offline")
+            condition = json.loads(body["parts"][0]["text"])["preexistencias"][0]
+            relation = {"Osteoporosis": "POSIBLE", "Hipotiroidismo": "NINGUNA"}.get(condition, "DIRECTA")
+            text = completion(condition, relation)["choices"][0]["message"]["content"]
+            return {"info": {"finish": "stop"}, "parts": [{"type": "text", "text": text}]}
+        return True
+
+    mock = AsyncMock(side_effect=bridge)
     monkeypatch.setattr(oauth, "bridge", mock)
     result = client.post("/me/ai/providers/openai/test", json={"revision": config["revision"]})
     assert result.json()["ok"] is not fails

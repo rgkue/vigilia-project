@@ -140,9 +140,9 @@ export function SimulatorPage({
       <section className="simulatorLimits">
         <div className="limitsIntro"><span className="eyebrow">ESTADO DE VALIDACIÓN</span><h2>Integraciones aún no aprobadas para datos reales</h2><p>Esta aplicación conserva el contexto técnico y los límites que deben revisarse antes de activar un flujo real.</p></div>
         <div className="limitGrid">
-          <article><span>01 · Persistencia</span><h3>Registros de muestra</h3><p>El backend actual inicializa SQLite con asegurados, pólizas y antecedentes ficticios; no es una base de clientes ni garantiza persistencia en un despliegue serverless.</p></article>
+          <article><span>01 · Persistencia</span><h3>Registros de muestra</h3><p>La demo carga en su base de datos asegurados, pólizas y antecedentes ficticios. No es una base de clientes: en producción esos datos llegan desde las integraciones de la aseguradora.</p></article>
           <article><span>02 · Acceso</span><h3>Permisos del servicio</h3><p>La clave opcional del backend no reemplaza autenticación de usuarios, roles, auditoría y autorización comprobada desde el servidor.</p></article>
-          <article><span>03 · IA y avisos</span><h3>Revisión humana</h3><p>Kev, Groq y Jev producen sugerencias por validar. Los avisos de canal interno o de prueba no confirman una entrega externa.</p></article>
+          <article><span>03 · IA y avisos</span><h3>Revisión humana</h3><p>El modelo de IA solo sugiere relaciones; una persona las confirma y el resultado se recalcula. Un aviso marcado como simulado no salió del servidor.</p></article>
         </div>
         <p className="featureGateNote"><code>VITE_LIVE_INGRESS_ENABLED</code> solo controla la interfaz; no protege la API. El backend debe aplicar sus propias reglas antes de tratar datos reales.</p>
       </section>
