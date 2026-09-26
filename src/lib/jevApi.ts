@@ -1,4 +1,4 @@
-import type { JevEvaluation, JevRelation, JevSuggestion } from "../types";
+import type { JevEvaluation, JevRelation, JevRoutingAudit, JevSuggestion } from "../types";
 
 export interface JevStatus {
   configured: boolean;
@@ -74,6 +74,18 @@ function parseSuggestion(value: unknown): JevSuggestion {
   return value as unknown as JevSuggestion;
 }
 
+function parseRoutingAudit(value: unknown): JevRoutingAudit | null {
+  if (value === null || value === undefined) return null;
+  if (!isRecord(value)
+    || !(value.finalProvider === null || typeof value.finalProvider === "string")
+    || !(value.planningReasoning === null || typeof value.planningReasoning === "string")
+    || typeof value.noTrainingRequested !== "boolean"
+    || typeof value.zeroDataRetentionRequested !== "boolean") {
+    throw new Error("Jev devolvió una auditoría de ruta inválida.");
+  }
+  return value as unknown as JevRoutingAudit;
+}
+
 function parseEvaluation(value: unknown): JevEvaluation {
   if (!isRecord(value)
     || value.model !== "typesafe-ai/jev"
@@ -90,6 +102,7 @@ function parseEvaluation(value: unknown): JevEvaluation {
     threshold: value.threshold,
     suggestions: value.suggestions.map(parseSuggestion),
     note: value.note,
+    routingAudit: parseRoutingAudit(value.routingAudit),
   };
 }
 

@@ -2,8 +2,10 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig(({ mode }) => {
+  const localEnv = loadEnv(mode, process.cwd(), "");
+  const configuredApi = localEnv.VITE_API_BASE_URL?.replace(/\/+$/, "");
+  const localApi = configuredApi && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredApi) ? configuredApi : undefined;
   if (mode === "development") {
-    const localEnv = loadEnv(mode, process.cwd(), "");
     const gatewayKey = localEnv.AI_GATEWAY_API_KEY;
     if (gatewayKey && !process.env.AI_GATEWAY_API_KEY) {
       process.env.AI_GATEWAY_API_KEY = gatewayKey;
@@ -48,6 +50,14 @@ export default defineConfig(({ mode }) => {
         });
       },
     }],
-    server: { port: 5173 },
+    server: {
+      port: 5173,
+      proxy: Object.fromEntries(
+        ["/health", "/public-config", "/auth", "/admin/", "/me/ai", "/integrations", "/ingresos", "/webhook"].map((prefix) => [prefix, {
+          target: process.env.VIGILIA_DEV_API_TARGET || localEnv.VIGILIA_DEV_API_TARGET || localApi || "http://127.0.0.1:8000",
+          changeOrigin: false,
+        }]),
+      ),
+    },
   };
 });

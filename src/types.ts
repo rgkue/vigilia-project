@@ -37,6 +37,18 @@ export interface ClassificationResult {
   explanation: string;
   source: "jev" | "kev" | "groq" | "backend";
   reviewRequired: boolean;
+  suggestedRelation?: JevRelation;
+  reviewed?: boolean;
+  reviewReason?: string | null;
+  reviewerId?: string | null;
+  reviewedAt?: string | null;
+}
+
+export interface IntegrationState {
+  kind: string;
+  status: "not_configured" | "connected" | "unavailable" | "invalid_response" | "not_found" | "pending";
+  checkedAt?: string | null;
+  error?: string | null;
 }
 
 /** Jev is one producer of the normalized classification result. */
@@ -56,6 +68,14 @@ export interface JevEvaluation {
   threshold: number;
   suggestions: JevSuggestion[];
   note: string;
+  routingAudit: JevRoutingAudit | null;
+}
+
+export interface JevRoutingAudit {
+  finalProvider: string | null;
+  planningReasoning: string | null;
+  noTrainingRequested: boolean;
+  zeroDataRetentionRequested: boolean;
 }
 
 /** Exact request schema from backend/app/schemas.py. */
@@ -98,5 +118,36 @@ export interface AgentResponse {
     admissions: NotificationResult;
     case_manager: NotificationResult;
   };
+  integrations: IntegrationState[];
   source: "local_demo" | "backend";
+  /** Datos operativos que añade GET /ingresos/listado. */
+  hospital?: string | null;
+  reason?: string | null;
+  maskedId?: string | null;
+  reviewPending?: boolean;
+}
+
+export interface IngressListFilters {
+  q?: string;
+  verdict?: AdministrativeVerdict[];
+  level?: AlertLevel[];
+  from?: string;
+  to?: string;
+  pendingReview?: boolean;
+}
+
+export interface IngressPage {
+  items: AgentResponse[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface IngressSummary {
+  generatedAt: string;
+  today: { total: number; byVerdict: Record<AdministrativeVerdict, number>; byLevel: Record<AlertLevel, number> };
+  last24h: number;
+  pendingReview: number;
+  reviewWindowDays: number;
+  deliveriesToday: { sent: number; internal: number; failed: number; notConfigured: number };
 }

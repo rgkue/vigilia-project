@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 TEST_DIRECTORY = tempfile.TemporaryDirectory(prefix="vigilia-api-tests-")
+os.environ["VIGILIA_MODE"] = "demo"
 os.environ["VIGILIA_DB"] = str(Path(TEST_DIRECTORY.name) / "vigilia-tests.db")
 os.environ["VIGILIA_KEY"] = ""
 os.environ["VIGILIA_AI_PROVIDER"] = "kev"
@@ -23,6 +24,7 @@ from fastapi.testclient import TestClient
 
 from app import db, main
 from app.main import app
+from auth_helpers import authenticate_demo
 
 
 def event(event_id="API-TEST", insured="8-100-100", reason="Fractura de muñeca"):
@@ -39,6 +41,7 @@ class ApiContractTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
         self.client.__enter__()
+        authenticate_demo(self.client)
         main._hits.clear()
         with db.conexion() as connection:
             connection.execute("DELETE FROM notificaciones")

@@ -1,10 +1,8 @@
 import { makeLocalResult } from "../data/demoCases";
-import type { AdministrativeVerdict, AgentResponse, AlertLevel, ClassificationResult, DemoCase, IngressEvent, JevRelation, NotificationResult } from "../types";
+import type { AdministrativeVerdict, AgentResponse, AlertLevel, ClassificationResult, DemoCase, IngressEvent, IngressListFilters, IngressPage, IngressSummary, JevRelation, NotificationResult } from "../types";
+import { apiConfigured, apiFetch, parseApiError } from "./clientApi";
 
-const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, "") ?? "";
-const ingressPath = (import.meta.env.VITE_INGRESO_PATH as string | undefined) || "/webhook/ingreso";
-
-export const isBackendConfigured = Boolean(apiBase);
+export const isBackendConfigured = apiConfigured;
 
 export class BackendConnectionError extends Error {
   constructor(message: string) {
@@ -25,18 +23,6 @@ function text(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
-function requestFailure(status: number): Error {
-  if (status === 401) {
-    return new Error("El servicio no autorizó esta operación. Contacta al administrador si el problema continúa.");
-  }
-  if (status === 429) {
-    return new Error("Se alcanzó el límite de solicitudes. Espera un momento antes de volver a intentarlo.");
-  }
-  return new Error(status >= 500
-    ? "El servicio tuvo un problema al procesar la solicitud. Inténtalo de nuevo más tarde."
-    : "No se pudo completar la solicitud. Revisa los datos e inténtalo de nuevo.");
-}
-
 function alertLevel(value: unknown): AlertLevel {
   if (value === "BAJO") return "informativa";
   if (value === "ALTO") return "prioritaria";
@@ -52,6 +38,7 @@ function delivery(notification: JsonRecord | undefined): NotificationResult {
   if (!notification) return { status: "unknown", channel: "sin dato" };
   const state = notification.estado;
   const channel = text(notification.canal) ?? "sin dato";
+  if (state === "NO_CONFIGURADA") return { status: "not_configured", channel };
   if (state === "ERROR") return { status: "failed", channel };
   if (state === "ENVIADA" && channel.toLowerCase() === "log") {
     return { status: "simulated", channel };
@@ -91,7 +78,8 @@ function normalizeClassifications(items: JsonRecord[]): ClassificationResult[] {
   return items.map((item) => {
     const explanation = text(item.justificacion) ?? "El backend no incluyó una explicación.";
     const rawRelation = text(item.relacion) as JevRelation | undefined;
-    const unresolved = /^Revisión humana pendiente:/i.test(explanation);
+    const reviewed = item.revisada === true;
+    const unresolved = !reviewed && /^Revisión humana pendiente:/i.test(explanation);
     const relation = !unresolved && rawRelation && acceptedRelations.has(rawRelation)
       ? rawRelation
       : "PENDIENTE";
@@ -108,7 +96,12 @@ function normalizeClassifications(items: JsonRecord[]): ClassificationResult[] {
           : /^Jev sugiere\b/i.test(explanation) || /\bJev\b/i.test(explanation)
             ? "jev"
             : "backend",
-      reviewRequired: true,
+      reviewRequired: !reviewed,
+      suggestedRelation: text(item.relacion_sugerida) as JevRelation | undefined,
+      reviewed,
+      reviewReason: text(item.motivo_revision) ?? null,
+      reviewerId: text(item.revisor_id) ?? null,
+      reviewedAt: text(item.revisada_en) ?? null,
     };
   });
 }
@@ -153,6 +146,8 @@ function summaryFor(verdict: unknown, hasPendingReview: boolean): string {
       return "El backend identificó una póliza no vigente. El equipo debe revisar el caso; la atención no se debe retrasar.";
     case "NO_ENCONTRADO":
       return "No se encontró un registro de asegurado o póliza. El equipo debe verificar los datos.";
+    case "PENDIENTE":
+      return "Una fuente necesaria no está configurada o no respondió. No se pudo completar la consulta.";
     default:
       return "El servicio procesó el evento; revisa los campos y avisos devueltos.";
   }
@@ -199,16 +194,31 @@ function normalizeResponse(value: unknown, eventId: string, createdFallback?: st
       admissions: notificationFor(payload.notificaciones, "admisiones"),
       case_manager: notificationFor(payload.notificaciones, "gestor_casos"),
     },
+    integrations: Array.isArray(payload.fuentes) ? payload.fuentes.map((item) => {
+      const source = record(item);
+      return {
+        kind: text(source.tipo) ?? "fuente",
+        status: (text(source.estado) ?? "unavailable") as AgentResponse["integrations"][number]["status"],
+        checkedAt: text(source.revisada_en) ?? null,
+        error: null,
+      };
+    }) : [],
     source: "backend",
+    hospital: text(payload.hospital) ?? null,
+    reason: text(payload.motivo) ?? null,
+    maskedId: text(payload.cedula_mascara) ?? null,
+    reviewPending: typeof payload.revision_pendiente === "boolean"
+      ? payload.revision_pendiente
+      : preexistingItems.some((item) => item.revisada !== true),
   };
 }
 
 export async function checkBackendHealth(): Promise<boolean> {
-  if (!apiBase) return false;
+  if (!isBackendConfigured) return false;
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 5_000);
   try {
-    const response = await fetch(`${apiBase}/health`, { signal: controller.signal });
+    const response = await apiFetch("/health", { signal: controller.signal });
     if (!response.ok) return false;
     const payload = record(await response.json().catch(() => ({})));
     return payload.ok === true;
@@ -220,16 +230,16 @@ export async function checkBackendHealth(): Promise<boolean> {
 }
 
 export async function loadIngressHistory(): Promise<AgentResponse[]> {
-  if (!apiBase) return [];
+  if (!isBackendConfigured) return [];
 
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch(`${apiBase}/ingresos?limite=10`, { signal: controller.signal });
-    const body: unknown = await response.json().catch(() => ({}));
+    const response = await apiFetch("/ingresos?limite=10", { signal: controller.signal });
     if (!response.ok) {
-      throw requestFailure(response.status);
+      throw await parseApiError(response);
     }
+    const body: unknown = await response.json().catch(() => ({}));
     if (!Array.isArray(body)) throw new Error("El servicio devolvió una respuesta inesperada. Contacta al administrador.");
     return body.map((item) => {
       const payload = record(item);
@@ -248,22 +258,21 @@ export async function loadIngressHistory(): Promise<AgentResponse[]> {
   }
 }
 
-async function postIngress(event: IngressEvent): Promise<AgentResponse> {
-  if (!apiBase) throw new BackendConnectionError("El servicio de ingresos no está configurado.");
+async function postIngress(event: IngressEvent, path: string): Promise<AgentResponse> {
+  if (!isBackendConfigured) throw new BackendConnectionError("El servicio de ingresos no está configurado.");
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 25_000);
   try {
-    const path = ingressPath.startsWith("/") ? ingressPath : `/${ingressPath}`;
-    const response = await fetch(`${apiBase}${path}`, {
+    const response = await apiFetch(path.startsWith("/") ? path : `/${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),
       signal: controller.signal,
     });
-    const body: unknown = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw requestFailure(response.status);
+      throw await parseApiError(response);
     }
+    const body: unknown = await response.json().catch(() => ({}));
     return normalizeResponse(body, event.evento_id, event.fecha_ingreso);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
@@ -280,14 +289,114 @@ async function postIngress(event: IngressEvent): Promise<AgentResponse> {
 
 /** Live intake never silently falls back to fabricated local records. */
 export function processIngress(event: IngressEvent): Promise<AgentResponse> {
-  return postIngress(event);
+  return postIngress(event, "/ingresos");
 }
 
 /** Synthetic scenarios may run locally, isolated from the client-facing workflow. */
 export async function processDemoIngress(event: IngressEvent, demoCase: DemoCase): Promise<AgentResponse> {
-  if (!apiBase) {
-    await new Promise((resolve) => window.setTimeout(resolve, 420));
-    return makeLocalResult(event, demoCase);
+  if (!isBackendConfigured) {
+    if (import.meta.env.DEV) {
+      await new Promise((resolve) => window.setTimeout(resolve, 420));
+      return makeLocalResult(event, demoCase);
+    }
+    throw new BackendConnectionError("El simulador local solo está disponible durante el desarrollo.");
   }
-  return postIngress(event);
+  return postIngress(event, "/webhook/ingreso");
+}
+
+const BACKEND_LEVEL: Record<AlertLevel, string> = { informativa: "BAJO", revision: "MEDIO", prioritaria: "ALTO" };
+
+async function readJson(path: string, fallbackMessage: string): Promise<unknown> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12_000);
+  try {
+    const response = await apiFetch(path, { signal: controller.signal, cache: "no-store" });
+    if (!response.ok) throw await parseApiError(response);
+    return await response.json();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("La consulta está tardando más de lo habitual. Inténtalo de nuevo.");
+    }
+    if (error instanceof TypeError) {
+      throw new BackendConnectionError("No se pudo conectar con el servicio. Inténtalo de nuevo más tarde.");
+    }
+    throw error instanceof Error ? error : new Error(fallbackMessage);
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+export function ingressQuery(filters: IngressListFilters, page = 1, limit = 25): URLSearchParams {
+  const query = new URLSearchParams({ limite: String(limit), pagina: String(page) });
+  if (filters.q?.trim()) query.set("q", filters.q.trim());
+  if (filters.verdict?.length) query.set("veredicto", filters.verdict.join(","));
+  if (filters.level?.length) query.set("nivel", filters.level.map((level) => BACKEND_LEVEL[level]).join(","));
+  if (filters.from) query.set("desde", filters.from);
+  if (filters.to) query.set("hasta", filters.to);
+  if (filters.pendingReview) query.set("revision_pendiente", "true");
+  return query;
+}
+
+/** Paged, filtered operational history (simulator scenarios excluded by the server). */
+export async function loadIngressList(filters: IngressListFilters = {}, page = 1, limit = 25): Promise<IngressPage> {
+  if (!isBackendConfigured) return { items: [], total: 0, page, limit };
+  const body = record(await readJson(`/ingresos/listado?${ingressQuery(filters, page, limit)}`, "No se pudo cargar la actividad."));
+  if (!Array.isArray(body.items)) throw new Error("El servicio devolvió una respuesta inesperada. Contacta al administrador.");
+  return {
+    items: body.items.map((item) => {
+      const payload = record(item);
+      return normalizeResponse(payload, text(payload.evento_id) ?? "EVENTO");
+    }),
+    total: typeof body.total === "number" ? body.total : body.items.length,
+    page: typeof body.pagina === "number" ? body.pagina : page,
+    limit: typeof body.limite === "number" ? body.limite : limit,
+  };
+}
+
+/** Finds one event (including simulator scenarios) to refresh an open detail. */
+export async function loadIngressEntry(eventId: string): Promise<AgentResponse | null> {
+  if (!isBackendConfigured) return null;
+  const query = new URLSearchParams({ q: eventId, limite: "10", incluir_pruebas: "true" });
+  const body = record(await readJson(`/ingresos/listado?${query}`, "No se pudo cargar el ingreso."));
+  const items = Array.isArray(body.items) ? body.items.map(record) : [];
+  const match = items.find((item) => item.evento_id === eventId);
+  return match ? normalizeResponse(match, eventId) : null;
+}
+
+function count(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+export async function loadIngressSummary(): Promise<IngressSummary> {
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const query = new URLSearchParams({ inicio_dia: dayStart.toISOString() });
+  const body = record(await readJson(`/ingresos/resumen?${query}`, "No se pudo cargar el resumen."));
+  const today = record(body.hoy);
+  const byVerdict = record(today.por_veredicto);
+  const byLevel = record(today.por_nivel);
+  const deliveries = record(body.avisos_hoy);
+  return {
+    generatedAt: text(body.generado_en) ?? new Date().toISOString(),
+    today: {
+      total: count(today.total),
+      byVerdict: {
+        VALIDA: count(byVerdict.VALIDA),
+        VALIDA_CON_ALERTAS: count(byVerdict.VALIDA_CON_ALERTAS),
+        NO_VALIDA: count(byVerdict.NO_VALIDA),
+        NO_ENCONTRADO: count(byVerdict.NO_ENCONTRADO),
+        PENDIENTE: count(byVerdict.PENDIENTE),
+      },
+      byLevel: { informativa: count(byLevel.BAJO), revision: count(byLevel.MEDIO), prioritaria: count(byLevel.ALTO) },
+    },
+    last24h: count(body.ultimas_24h),
+    pendingReview: count(body.revision_pendiente),
+    reviewWindowDays: count(body.ventana_revision_dias) || 30,
+    deliveriesToday: {
+      sent: count(deliveries.enviados),
+      internal: count(deliveries.internos),
+      failed: count(deliveries.fallidos),
+      notConfigured: count(deliveries.sin_configurar),
+    },
+  };
 }
