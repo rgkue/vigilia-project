@@ -14,6 +14,7 @@ interface AuthOptions {
 type AccessPath = "employee" | "admin";
 // En la pantalla de acceso un 401 describe el dato rechazado, no una sesión que terminó.
 const PRE_LOGIN = { sessionExpected: false };
+const DEMO_EMPLOYEE_ID = "EMP-REC-001";
 
 export function AuthGate({ loading, error: initialError, notice = "", onSession, onChangeMode }: { loading: boolean; error: string; notice?: string; onSession: (session: CurrentSession) => void; onChangeMode?: () => void }) {
   const [options, setOptions] = useState<AuthOptions | null>(null);
@@ -73,7 +74,7 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
       // el personal administrativo entra con su ID, el código de su app y su contraseña.
       choosePath("employee"); setAdminReady(false); resetEmployeeId(); setManualEntry(true);
       setError(value === "vigilia:admin:demo-admin"
-        ? "Ese QR es del administrador de la demostración y no sirve en Producción. Para evaluar sin credenciales usa «Entrar en modo Demo»; en Producción escribe tu ID, el código de tu app autenticadora y tu contraseña."
+        ? `Ese QR es del administrador de la demostración y no sirve en Producción. ${options.demo_access ? "Para evaluar sin credenciales usa «Entrar en modo Demo»; en Producción, escribe" : "Escribe"} tu ID, el código de tu app autenticadora y tu contraseña.`
         : "En esta instalación no se entra con QR de administración: escribe tu ID, el código de tu app autenticadora y tu contraseña.");
       return;
     }
@@ -111,6 +112,10 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
         return;
       }
       if (!response.ok) {
+        if (response.status === 401 && options?.mode === "production" && employeeId.trim().toUpperCase() === DEMO_EMPLOYEE_ID) {
+          // ID público de la instalación demo: avisarlo no revela nada de las cuentas reales.
+          throw new Error(`${DEMO_EMPLOYEE_ID} es la cuenta de prueba de la instalación demo y no existe en Producción. ${options.demo_access ? "Para evaluar sin credenciales usa «Entrar en modo Demo»." : "Entra con tu ID de acceso."}`);
+        }
         if (response.status === 401) {
           if (needsPassword) { setEmployeeStep(2); setNeedsPassword(false); setPassword(""); }
           throw new Error(needsPassword
@@ -177,7 +182,7 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
           {employeeStep === 1 ? <section className="authStep authStepReveal" aria-labelledby="auth-step-id">
             <h2 id="auth-step-id"><span>1</span>Identificación</h2>
             {showIdInput ? <>
-              <label className="adminField"><span>ID de acceso o cédula</span><input ref={employeeIdInput} aria-invalid={Boolean(fieldErrors.employeeId)} aria-describedby={fieldErrors.employeeId ? "employee-id-error" : undefined} disabled={busy} required autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={40} pattern="[A-Za-z0-9-]+" value={employeeId} onChange={(event) => { setEmployeeId(event.target.value); setScannedId(false); setEmployeeStep(1); setCode(""); setNeedsPassword(false); setPassword(""); setFieldErrors((previous) => ({ ...previous, employeeId: undefined })); setError(""); }} placeholder={options.mode === "demo" ? "EMP-REC-001" : "ADMIN-01"} /></label>
+              <label className="adminField"><span>ID de acceso o cédula</span><input ref={employeeIdInput} aria-invalid={Boolean(fieldErrors.employeeId)} aria-describedby={fieldErrors.employeeId ? "employee-id-error" : undefined} disabled={busy} required autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={40} pattern="[A-Za-z0-9-]+" value={employeeId} onChange={(event) => { setEmployeeId(event.target.value); setScannedId(false); setEmployeeStep(1); setCode(""); setNeedsPassword(false); setPassword(""); setFieldErrors((previous) => ({ ...previous, employeeId: undefined })); setError(""); }} placeholder={options.mode === "demo" ? DEMO_EMPLOYEE_ID : "Tu ID o cédula"} /></label>
               {fieldErrors.employeeId && <span id="employee-id-error" className="authFieldError" role="alert">{fieldErrors.employeeId}</span>}
               <button className="primaryButton" type="button" onClick={continueWithEmployeeId}>Continuar</button>
             </> : <QRScanner onRead={(value) => void scan(value)} cameraLabel={options.mode === "production" && !options.oidc_enabled ? "Escanear gafete" : "Escanear gafete o QR de admin"} />}
