@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import vigiliaLogo from "../assets/vigilia-card-nav-logo.svg";
-import { apiFetch, apiUrl, jsonRequest, parseApiError, setCsrfToken, type CurrentSession } from "../lib/clientApi";
+import { apiFetch, apiUrl, jsonRequest, parseApiError, setCsrfToken, startDemoSession, type CurrentSession } from "../lib/clientApi";
 import { QRCard, QRScanner } from "./AuthQR";
 import { Icon } from "./Icon";
 import "../auth.css";
 
 interface AuthOptions {
-  csrf_token: string; mode: "demo" | "production"; bootstrap_allowed: boolean; oidc_enabled?: boolean;
+  csrf_token: string; mode: "demo" | "production"; bootstrap_allowed: boolean; oidc_enabled?: boolean; demo_access?: boolean;
   demo_admin_badge: string | null;
   demo_employee: { employee_id: string; badge: string; uri: string } | null;
 }
 
 type AccessPath = "employee" | "admin";
+// En la pantalla de acceso un 401 describe el dato rechazado, no una sesión que terminó.
+const PRE_LOGIN = { sessionExpected: false };
 
 export function AuthGate({ loading, error: initialError, notice = "", onSession, onChangeMode }: { loading: boolean; error: string; notice?: string; onSession: (session: CurrentSession) => void; onChangeMode?: () => void }) {
   const [options, setOptions] = useState<AuthOptions | null>(null);
@@ -40,7 +42,7 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 15000);
     setConnecting(true); setError("");
-    jsonRequest<AuthOptions>("/auth/options", { signal: controller.signal }).then((result) => {
+    jsonRequest<AuthOptions>("/auth/options", { signal: controller.signal }, PRE_LOGIN).then((result) => {
       if (!cancelled) { setCsrfToken(result.csrf_token); setOptions(result); setError(""); }
     }).catch((reason: Error) => { if (!cancelled) setError(reason.name === "AbortError" ? "La conexión está tardando demasiado. Vuelve a intentarlo." : reason.message); })
       .finally(() => { window.clearTimeout(timeout); if (!cancelled) setConnecting(false); });
@@ -66,11 +68,20 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
       return;
     }
     if (!/^vigilia:admin:/.test(value)) { setError("Este QR no es un gafete de Vigilia. El QR de configuración se escanea en tu app autenticadora, no aquí."); return; }
+    if (options?.mode === "production" && (value === "vigilia:admin:demo-admin" || !options.oidc_enabled)) {
+      // Sin inicio de sesión corporativo (OIDC) el QR de administración no lleva a ninguna parte:
+      // el personal administrativo entra con su ID, el código de su app y su contraseña.
+      choosePath("employee"); setAdminReady(false); resetEmployeeId(); setManualEntry(true);
+      setError(value === "vigilia:admin:demo-admin"
+        ? "Ese QR es del administrador de la demostración y no sirve en Producción. Para evaluar sin credenciales usa «Entrar en modo Demo»; en Producción escribe tu ID, el código de tu app autenticadora y tu contraseña."
+        : "En esta instalación no se entra con QR de administración: escribe tu ID, el código de tu app autenticadora y tu contraseña.");
+      return;
+    }
     choosePath("admin");
     if (busy || !options) return;
     setBusy(true); setAdminReady(false);
     try {
-      const result = await jsonRequest<{ csrf_token: string }>("/auth/admin/qr/start", { method: "POST", body: JSON.stringify({ qr: value }) });
+      const result = await jsonRequest<{ csrf_token: string }>("/auth/admin/qr/start", { method: "POST", body: JSON.stringify({ qr: value }) }, PRE_LOGIN);
       setCsrfToken(result.csrf_token); setAdminReady(true);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo validar el QR."); }
     finally { setBusy(false); }
@@ -106,7 +117,7 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
             ? "No se pudo validar el código o la contraseña. Introduce un código vigente y vuelve a intentarlo."
             : "No se pudo validar tu ID y código. Revisa el ID e introduce un código vigente de tu app autenticadora.");
         }
-        throw await parseApiError(response);
+        throw await parseApiError(response, PRE_LOGIN);
       }
       const result = await response.json();
       setCsrfToken(result.csrf_token); setCode(""); setPassword(""); onSession(result as CurrentSession);
@@ -117,9 +128,16 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
   async function loginDemo() {
     setBusy(true); setError("");
     try {
-      const result = await jsonRequest<CurrentSession>("/auth/demo-admin", { method: "POST", body: "{}" });
+      const result = await jsonRequest<CurrentSession>("/auth/demo-admin", { method: "POST", body: "{}" }, PRE_LOGIN);
       setCsrfToken(result.csrf_token); onSession(result);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo iniciar sesión."); }
+    finally { setBusy(false); }
+  }
+
+  async function loginDemoAccess() {
+    setBusy(true); setError("");
+    try { onSession(await startDemoSession()); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo entrar en modo Demo."); }
     finally { setBusy(false); }
   }
 
@@ -159,10 +177,10 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
           {employeeStep === 1 ? <section className="authStep authStepReveal" aria-labelledby="auth-step-id">
             <h2 id="auth-step-id"><span>1</span>Identificación</h2>
             {showIdInput ? <>
-              <label className="adminField"><span>ID de acceso o cédula</span><input ref={employeeIdInput} aria-invalid={Boolean(fieldErrors.employeeId)} aria-describedby={fieldErrors.employeeId ? "employee-id-error" : undefined} disabled={busy} required autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={40} pattern="[A-Za-z0-9-]+" value={employeeId} onChange={(event) => { setEmployeeId(event.target.value); setScannedId(false); setEmployeeStep(1); setCode(""); setNeedsPassword(false); setPassword(""); setFieldErrors((previous) => ({ ...previous, employeeId: undefined })); setError(""); }} placeholder="EMP-REC-001" /></label>
+              <label className="adminField"><span>ID de acceso o cédula</span><input ref={employeeIdInput} aria-invalid={Boolean(fieldErrors.employeeId)} aria-describedby={fieldErrors.employeeId ? "employee-id-error" : undefined} disabled={busy} required autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={40} pattern="[A-Za-z0-9-]+" value={employeeId} onChange={(event) => { setEmployeeId(event.target.value); setScannedId(false); setEmployeeStep(1); setCode(""); setNeedsPassword(false); setPassword(""); setFieldErrors((previous) => ({ ...previous, employeeId: undefined })); setError(""); }} placeholder={options.mode === "demo" ? "EMP-REC-001" : "ADMIN-01"} /></label>
               {fieldErrors.employeeId && <span id="employee-id-error" className="authFieldError" role="alert">{fieldErrors.employeeId}</span>}
               <button className="primaryButton" type="button" onClick={continueWithEmployeeId}>Continuar</button>
-            </> : <QRScanner onRead={(value) => void scan(value)} cameraLabel="Escanear gafete o QR de admin" />}
+            </> : <QRScanner onRead={(value) => void scan(value)} cameraLabel={options.mode === "production" && !options.oidc_enabled ? "Escanear gafete" : "Escanear gafete o QR de admin"} />}
             <button type="button" className="authSwitch" onClick={() => { setManualEntry(!manualEntry); setError(""); setFieldErrors({}); if (manualEntry) resetEmployeeId(); }}>{manualEntry ? "Usar mi gafete QR" : "No tengo mi gafete · escribir mi ID"}</button>
           </section> : <section className="authStep authStepComplete" aria-labelledby="auth-step-id-done">
             <h2 id="auth-step-id-done"><span><Icon name="check" size={14} /></span>Identificación</h2>
@@ -193,9 +211,16 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
               ? <button className="primaryButton" type="button" disabled={busy} onClick={() => void loginDemo()}>Simular inicio corporativo (demo)</button>
               : <a className="primaryButton" href={apiUrl("/auth/login")}>Continuar con la cuenta corporativa</a>}
           </section>}
+          <button type="button" className="authSwitch" onClick={() => { choosePath("employee"); setAdminReady(false); setError(""); }}>Volver al acceso con ID o gafete</button>
         </div>}
 
         {options.bootstrap_allowed && <a className="authSwitch authBootstrap" href={apiUrl("/auth/login")}>Configurar el primer administrador</a>}
+
+        {options.mode === "production" && options.demo_access && <section className="authDemoAccess" aria-labelledby="auth-demo-access">
+          <h2 id="auth-demo-access">¿Solo quieres evaluar Vigilia?</h2>
+          <p>El modo Demo entra al instante, sin credenciales, con datos ficticios.</p>
+          <button className="secondaryButton" type="button" disabled={busy} onClick={() => void loginDemoAccess()}>Entrar en modo Demo</button>
+        </section>}
 
         {options.mode === "demo" && <details className="authDemo">
           <summary><span className="card-nav-env"><i />Demo</span>Credenciales sintéticas de demostración</summary>
@@ -217,7 +242,7 @@ export function AuthGate({ loading, error: initialError, notice = "", onSession,
         </details>}
       </>}
       <p className="authFooter"><Icon name="shield" size={14} />Acceso auditado · tus permisos se verifican en el servidor.</p>
-      {onChangeMode && <button type="button" className="authSwitch" onClick={onChangeMode}>{options?.mode === "production" ? "Instalación de producción" : "Instalación demo"} · Cambiar modo</button>}
+      {onChangeMode && <button type="button" className="authSwitch" onClick={onChangeMode}>Cambiar de modo (Demo o Producción)</button>}
     </div>
   </main>;
 }

@@ -211,6 +211,7 @@ function normalizeResponse(value: unknown, eventId: string, createdFallback?: st
     reviewPending: typeof payload.revision_pendiente === "boolean"
       ? payload.revision_pendiente
       : preexistingItems.some((item) => item.revisada !== true),
+    origin: payload.origen === "demo" ? "demo" : payload.origen === "produccion" ? "produccion" : undefined,
     updates: Array.isArray(payload.actualizaciones) ? payload.actualizaciones.map((item) => {
       const update = record(item);
       return {
@@ -307,8 +308,9 @@ export function processIngress(event: IngressEvent): Promise<AgentResponse> {
   return postIngress(event, "/ingresos");
 }
 
-/** Synthetic scenarios may run locally, isolated from the client-facing workflow. */
-export async function processDemoIngress(event: IngressEvent, demoCase: DemoCase): Promise<AgentResponse> {
+/** Synthetic scenarios may run locally, isolated from the client-facing workflow.
+ * En una instalación de producción con modo Demo, el escenario entra por /ingresos con la sesión. */
+export async function processDemoIngress(event: IngressEvent, demoCase: DemoCase, path = "/webhook/ingreso"): Promise<AgentResponse> {
   if (!isBackendConfigured) {
     if (import.meta.env.DEV) {
       await new Promise((resolve) => window.setTimeout(resolve, 420));
@@ -316,7 +318,7 @@ export async function processDemoIngress(event: IngressEvent, demoCase: DemoCase
     }
     throw new BackendConnectionError("El simulador local solo está disponible durante el desarrollo.");
   }
-  return postIngress(event, "/webhook/ingreso");
+  return postIngress(event, path);
 }
 
 const BACKEND_LEVEL: Record<AlertLevel, string> = { informativa: "BAJO", revision: "MEDIO", prioritaria: "ALTO" };

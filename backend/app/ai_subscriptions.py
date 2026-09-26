@@ -73,6 +73,8 @@ def authorize(request: Request, provider: str, write=False):
     actor = security.current_profile(request)
     if write:
         security.require_csrf(request, request.headers.get("x-csrf-token"))
+        from .provisioning import ensure_personal_ai_editable  # import local: evita un ciclo
+        ensure_personal_ai_editable(actor["id"])
     if provider not in PROVIDERS:
         raise HTTPException(422, "Este proveedor no ofrece una suscripción compatible con el conector.")
     return actor

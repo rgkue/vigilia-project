@@ -33,6 +33,17 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
 BASIC_PERMISSIONS = frozenset({"ingress.read", "ingress.submit"})
 OIDC_VARIABLES = ("OIDC_DISCOVERY_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_ISSUER")
 PASSWORD_CHANGE_REQUIRED = "Cambia tu contraseña temporal para continuar."
+# Modo Demo dentro de una instalación de producción: una cuenta sin credenciales y con permisos
+# de operación (sin administrar personas ni integraciones), activada con VIGILIA_DEMO_ACCESS=true.
+DEMO_ACCESS_ID = "demo-evaluador"
+DEMO_ACCESS_ROLES = ["recepcionista", "revisor", "auditor"]
+DEMO_ACCESS_PERMISSIONS = sorted({"ingress.submit", "ingress.read", "classification.review", "audit.read"})
+
+
+def demo_access_enabled() -> bool:
+    from .db import database_mode
+
+    return database_mode() == "production" and (os.getenv("VIGILIA_DEMO_ACCESS") or "false").strip().casefold() == "true"
 
 
 def requires_password(permissions: list[str] | set[str]) -> bool:
@@ -144,6 +155,9 @@ def current_profile(request: Request, allow_pending_password: bool = False) -> d
     user_id = request.session.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Inicia sesión para continuar.")
+    if request.session.get("auth_method") == "demo_access" and (not demo_access_enabled() or user_id != DEMO_ACCESS_ID):
+        request.session.clear()
+        raise HTTPException(401, "El modo Demo no está disponible en esta instalación. Inicia sesión para continuar.")
     with db.conexion() as connection:
         row = connection.execute("SELECT * FROM user_profiles WHERE id = ?", (user_id,)).fetchone()
     profile = _row_profile(row)
@@ -168,6 +182,9 @@ def current_profile(request: Request, allow_pending_password: bool = False) -> d
         if profile["must_change_password"] and not allow_pending_password:
             raise HTTPException(403, PASSWORD_CHANGE_REQUIRED)
     elif profile["issuer"] == "demo":
+        request.session.clear()
+        raise HTTPException(401, "Inicia sesión para continuar.")
+    elif profile["issuer"] == "demo-access" and profile["auth_method"] != "demo_access":
         request.session.clear()
         raise HTTPException(401, "Inicia sesión para continuar.")
     return profile

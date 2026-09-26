@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vigilia · Documentación del proyecto</title>
+<meta name="description" content="Documentación en vivo de Vigilia, sistema de alerta temprana de ingresos a emergencias (hackIAthon 2026, reto 4). Se lee directamente del repositorio.">
+<meta name="theme-color" content="#060607">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #060607;
+  --surface: #111113;
+  --surface-2: #17171a;
+  --text: #f2f2f5;
+  --muted: rgba(235, 235, 245, .7);
+  --faint: rgba(235, 235, 245, .46);
+  --line: rgba(255, 255, 255, .1);
+  --line-strong: rgba(255, 255, 255, .2);
+  --accent: #8fceb2;
+  --accent-strong: #a8e7cb;
+  --accent-soft: rgba(143, 206, 178, .1);
+  --warn: #efcf91;
+  --code-bg: #0c0c0e;
+  --code-text: #e7e7ec;
+  --radius: 14px;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "Cascadia Code", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #f5f6f6;
+    --surface: #ffffff;
+    --surface-2: #eef1f0;
+    --text: #12181b;
+    --muted: #46545a;
+    --faint: #6b787d;
+    --line: #d9e0de;
+    --line-strong: #b9c5c2;
+    --accent: #0e6b56;
+    --accent-strong: #0a5543;
+    --accent-soft: rgba(14, 107, 86, .08);
+    --warn: #7a5200;
+    --code-bg: #10161a;
+    --code-text: #e8eef0;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-padding-top: 84px; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.65 var(--sans); -webkit-text-size-adjust: 100%; }
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+a:hover { color: var(--text); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.skip { position: absolute; left: -999px; top: 8px; z-index: 50; padding: 8px 12px; border-radius: 8px; background: var(--surface); }
+.skip:focus { left: 12px; }
+
+/* Barra superior */
+.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px clamp(16px, 3vw, 32px); border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 86%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; color: var(--text); text-decoration: none; }
+.brand svg { flex: none; }
+.brand .name { font-weight: 700; letter-spacing: .14em; }
+.brand .sub { overflow: hidden; padding-left: 12px; border-left: 1px solid var(--line-strong); color: var(--faint); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.actions { display: flex; flex: none; gap: 8px; }
+.button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.button:hover { border-color: var(--accent); color: var(--text); }
+.button.primary { border-color: transparent; background: var(--accent); color: #06130e; }
+.button.primary:hover { background: var(--accent-strong); color: #06130e; }
+
+/* Distribución */
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr) 220px; gap: clamp(20px, 3vw, 44px); max-width: 1320px; margin: 0 auto; padding: 28px clamp(16px, 3vw, 32px) 64px; }
+.side { position: sticky; top: 84px; align-self: start; max-height: calc(100vh - 100px); overflow: auto; }
+.label { margin: 0 0 8px; color: var(--faint); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.docs ul, .toc ol { margin: 0; padding: 0; list-style: none; }
+.docs a { display: block; padding: 7px 10px; border-radius: 10px; color: var(--muted); font-size: 14.5px; line-height: 1.35; text-decoration: none; }
+.docs a:hover { background: var(--surface-2); color: var(--text); }
+.docs a[aria-current="page"] { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.docs .group { margin-top: 18px; }
+.toc a { display: block; padding: 4px 0 4px 10px; border-left: 2px solid var(--line); color: var(--faint); font-size: 13.5px; line-height: 1.4; text-decoration: none; }
+.toc a:hover { color: var(--text); }
+.toc a.active { border-left-color: var(--accent); color: var(--accent-strong); }
+.toc .depth-3 a { padding-left: 22px; }
+.toc[hidden] { display: none; }
+
+/* Documento */
+main { min-width: 0; outline: none; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0 0 18px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--faint); font-size: 13.5px; }
+.meta .live { display: inline-flex; align-items: center; gap: 8px; color: var(--accent-strong); font-weight: 600; }
+.meta .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.meta a { color: var(--muted); }
+.notice { padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--muted); }
+.notice.error { border-color: rgba(237, 133, 133, .45); }
+.loading { display: grid; gap: 12px; }
+.loading span { height: 14px; border-radius: 7px; background: linear-gradient(90deg, var(--surface-2), var(--surface), var(--surface-2)); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+.loading span:nth-child(1) { width: 60%; height: 30px; }
+.loading span:nth-child(3) { width: 85%; }
+.loading span:nth-child(4) { width: 70%; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .loading span { animation: none; } }
+
+.markdown { max-width: 860px; overflow-wrap: anywhere; }
+.markdown > *:first-child { margin-top: 0; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 { position: relative; line-height: 1.2; letter-spacing: -.02em; }
+.markdown h1 { margin: 0 0 14px; font-size: clamp(30px, 4.4vw, 44px); letter-spacing: -.035em; }
+.markdown h2 { margin: 44px 0 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 26px; }
+.markdown h3 { margin: 30px 0 10px; font-size: 19px; }
+.markdown h4 { margin: 24px 0 8px; font-size: 16px; }
+.markdown .anchor { position: absolute; left: -1.1em; padding-right: .3em; color: var(--faint); font-weight: 400; text-decoration: none; opacity: 0; }
+.markdown h2 .anchor { top: 10px; }
+.markdown :is(h1, h2, h3, h4):hover .anchor, .markdown .anchor:focus { opacity: 1; }
+.markdown p, .markdown ul, .markdown ol, .markdown blockquote, .markdown .tableWrap, .markdown .codeBlock { margin: 0 0 16px; }
+.markdown ul, .markdown ol { padding-left: 1.5em; }
+.markdown li { margin: 5px 0; }
+.markdown li > p { margin: 0 0 8px; }
+.markdown li > .codeBlock { margin: 10px 0 12px; }
+.markdown li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.3em; }
+.markdown input[type="checkbox"] { margin: 0 8px 0 0; accent-color: var(--accent); vertical-align: -1px; }
+.markdown strong { color: var(--text); }
+.markdown blockquote { margin-left: 0; padding: 10px 16px; border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; background: var(--accent-soft); color: var(--muted); }
+.markdown blockquote p { margin: 6px 0; }
+.markdown hr { height: 1px; margin: 32px 0; border: 0; background: var(--line); }
+.markdown code { padding: .12em .38em; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); font: 500 .88em/1.4 var(--mono); }
+.markdown img { max-width: 100%; border-radius: 10px; }
+.tableWrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.markdown table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.markdown th, .markdown td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.markdown th { background: var(--surface-2); color: var(--text); font-weight: 650; white-space: nowrap; }
+.markdown tr:last-child td { border-bottom: 0; }
+.codeBlock { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--code-bg); }
+.codeBlock .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 14px; border-bottom: 1px solid rgba(255, 255, 255, .08); color: rgba(235, 235, 245, .5); font: 600 11.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.codeBlock .copy { min-height: 28px; padding: 0 10px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 8px; background: transparent; color: rgba(235, 235, 245, .82); cursor: pointer; font: 600 12px/1 var(--sans); }
+.codeBlock .copy:hover { border-color: #8fceb2; color: #fff; }
+.codeBlock pre { margin: 0; padding: 14px 16px; overflow-x: auto; color: var(--code-text); font: 13.5px/1.6 var(--mono); }
+.codeBlock pre code { padding: 0; border: 0; background: none; color: inherit; font: inherit; }
+.raw { white-space: pre-wrap; font: 13.5px/1.6 var(--mono); }
+
+footer { max-width: 1320px; margin: 0 auto; padding: 22px clamp(16px, 3vw, 32px) 40px; border-top: 1px solid var(--line); color: var(--faint); font-size: 13.5px; }
+footer p { margin: 4px 0; }
+
+/* Pantallas medianas: sin índice lateral */
+@media (max-width: 1180px) {
+  .layout { grid-template-columns: 230px minmax(0, 1fr); }
+  .toc { display: none; }
+}
+/* Teléfonos: documentos como pestañas desplazables */
+@media (max-width: 820px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-top: 16px; }
+  .side.docs { position: static; max-height: none; overflow: visible; }
+  .docs .label, .docs .group-title { display: none; }
+  .docs ul { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+  .docs .group { display: contents; }
+  .docs li { flex: none; }
+  .docs a { border: 1px solid var(--line); white-space: nowrap; }
+  .brand .sub { display: none; }
+  .button .long { display: none; }
+  .markdown h2 { font-size: 22px; }
+  .markdown .anchor { display: none; }
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/marked@18.0.14/lib/marked.umd.js" integrity="sha256-IVaId6k40sTn104n8Y5g2pa7c6aICWEMo5IW4e/rrmI=" crossorigin="anonymous" defer></script>
+</head>
+<body>
+<a class="skip" href="#doc">Saltar al contenido</a>
+<header class="top">
+  <a class="brand" href="./" aria-label="Vigilia · documentación del proyecto">
+    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#050506"/><path d="M4 16h5.2l2.9-8 5.3 16 3-8H28" fill="none" stroke="#9ce7ca" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="name">VIGILIA</span>
+    <span class="sub">Documentación en vivo · hackIAthon 2026 · Reto 4</span>
+  </a>
+  <nav class="actions" aria-label="Enlaces del proyecto">
+    <a class="button primary" href="https://vigilia-health.vercel.app" target="_blank" rel="noopener">Abrir <span class="long">la aplicación</span></a>
+    <a class="button" href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener">Repositorio</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <nav class="side docs" aria-label="Documentos del proyecto">
+    <p class="label">Documentos</p>
+    <ul id="doc-list"></ul>
+  </nav>
+
+  <main id="doc" tabindex="-1">
+    <div class="meta" id="doc-meta" hidden>
+      <span class="live"><i aria-hidden="true"></i>Leído en vivo del repositorio</span>
+      <span id="doc-updated"></span>
+      <a id="doc-source" href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener">Ver este archivo en GitHub</a>
+    </div>
+    <article class="markdown" id="doc-body" aria-live="polite" aria-busy="true">
+      <div class="loading" role="status" aria-label="Cargando la documentación"><span></span><span></span><span></span><span></span></div>
+    </article>
+    <noscript><p class="notice">Esta página necesita JavaScript para leer la documentación. Consúltala en <a href="https://github.com/rgkue/vigilia-project#readme">GitHub</a>.</p></noscript>
+  </main>
+
+  <aside class="side toc" id="toc-panel" aria-label="En esta página" hidden>
+    <p class="label">En esta página</p>
+    <ol id="toc"></ol>
+  </aside>
+</div>
+
+<footer>
+  <p><strong>Vigilia</strong> · Sistema de alerta temprana de ingresos a emergencias · hackIAthon 2026, reto 4.</p>
+  <p>El contenido se lee en cada visita desde <a href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener">github.com/rgkue/vigilia-project</a> (rama <code>main</code>), así que siempre coincide con el repositorio.</p>
+</footer>
+
+<script>
+(() => {
+  "use strict";
+  const REPO = "rgkue/vigilia-project";
+  const BRANCH = "main";
+  const RAW = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/`;
+  const GITHUB = `https://github.com/${REPO}`;
+  const DOCS = [
+    { group: "Proyecto", items: [
+      ["README.md", "Presentación y cómo evaluar"],
+      ["docs/demo.md", "Guion de demostración"],
+      ["docs/entrega-jurado.md", "Entrega y despliegue"],
+    ] },
+    { group: "Técnica", items: [
+      ["backend/docs/contratos.md", "Contratos de la API"],
+      ["docs/frontend-backend-contract.md", "Frontend y backend"],
+      ["backend/docs/operaciones-produccion.md", "Operación en producción"],
+      ["docs/employee-access.md", "Acceso del personal"],
+      ["docs/ai-provider-settings.md", "Configuración de IA"],
+      ["docs/plan.md", "Plan del producto"],
+    ] },
+  ];
+  const TITLES = new Map(DOCS.flatMap((group) => group.items));
+  const ALLOWED_TAGS = new Set(["A", "P", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "LI", "CODE", "PRE", "BLOCKQUOTE", "TABLE",
+    "THEAD", "TBODY", "TR", "TH", "TD", "STRONG", "EM", "B", "I", "S", "DEL", "HR", "BR", "IMG", "INPUT", "SPAN", "DIV", "SUP", "SUB",
+    "DETAILS", "SUMMARY", "KBD"]);
+  const ALLOWED_ATTRS = { A: ["href", "title"], IMG: ["src", "alt", "title", "width", "height"], INPUT: ["type", "checked", "disabled"],
+    TH: ["align"], TD: ["align"], OL: ["start"], CODE: ["class"], DETAILS: ["open"] };
+  const body = document.getElementById("doc-body");
+  const meta = document.getElementById("doc-meta");
+  const updated = document.getElementById("doc-updated");
+  const source = document.getElementById("doc-source");
+  const tocPanel = document.getElementById("toc-panel");
+  const toc = document.getElementById("toc");
+  let loadToken = 0;
+
+  const safePath = (value) => typeof value === "string" && /^[\w.\/-]+\.md$/i.test(value) && !value.split("/").includes("..") && !value.startsWith("/");
+  const currentPath = () => {
+    const requested = new URLSearchParams(location.search).get("doc");
+    return safePath(requested) ? requested : "README.md";
+  };
+  const docUrl = (path, anchor = "") => (path === "README.md" ? "./" : `./?doc=${encodeURI(path)}`) + (anchor ? `#${anchor}` : "");
+  const escapeHtml = (value) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
+  // Mismo criterio que GitHub para los anclajes de los títulos.
+  const slugify = (text) => text.trim().toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s/g, "-");
+
+  function resolve(base, relative) {
+    const parts = base.split("/").slice(0, -1);
+    for (const segment of relative.split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === "..") parts.pop(); else parts.push(segment);
+    }
+    return parts.join("/");
+  }
+
+  function renderNav(active) {
+    const list = document.getElementById("doc-list");
+    list.replaceChildren(...DOCS.map((group) => {
+      const item = document.createElement("li");
+      item.className = "group";
+      const title = document.createElement("p");
+      title.className = "label group-title";
+      title.textContent = group.group;
+      const inner = document.createElement("ul");
+      inner.append(...group.items.map(([path, name]) => {
+        const li = document.createElement("li");
+        const link = document.createElement("a");
+        link.href = docUrl(path);
+        link.dataset.doc = path;
+        link.textContent = name;
+        if (path === active) link.setAttribute("aria-current", "page");
+        li.append(link);
+        return li;
+      }));
+      item.append(title, inner);
+      return item;
+    }));
+  }
+
+  // El Markdown viene del repositorio; aun así solo se conservan etiquetas y atributos de documentación.
+  function sanitize(root) {
+    for (const element of [...root.querySelectorAll("*")].reverse()) {
+      if (!ALLOWED_TAGS.has(element.tagName) || (element.tagName === "INPUT" && element.getAttribute("type") !== "checkbox")) {
+        element.replaceWith(document.createTextNode(element.textContent || ""));
+        continue;
+      }
+      const allowed = ALLOWED_ATTRS[element.tagName] || [];
+      for (const attribute of [...element.attributes]) {
+        const value = attribute.value.trim();
+        if (!allowed.includes(attribute.name) || (["href", "src"].includes(attribute.name) && /^(javascript|vbscript|data):/i.test(value))) {
+          element.removeAttribute(attribute.name);
+        }
+      }
+      if (element.tagName === "INPUT") element.setAttribute("disabled", "");
+    }
+  }
+
+  function rewriteLinks(root, path) {
+    for (const link of root.querySelectorAll("a[href]")) {
+      const href = link.getAttribute("href");
+      if (/^(https?:)?\/\//i.test(href)) { link.target = "_blank"; link.rel = "noopener"; continue; }
+      if (/^mailto:/i.test(href)) continue;
+      if (href.startsWith("#")) { link.setAttribute("href", "#" + decodeURIComponent(href.slice(1))); continue; }
+      const [target, anchor = ""] = href.split("#");
+      const directory = target.endsWith("/");
+      const resolved = resolve(path, target);
+      const markdown = directory ? `${resolved}/README.md` : resolved;
+      if (/\.md$/i.test(markdown) && safePath(markdown)) {
+        link.setAttribute("href", docUrl(markdown, decodeURIComponent(anchor)));
+        link.dataset.doc = markdown;
+      } else {
+        link.setAttribute("href", `${GITHUB}/blob/${BRANCH}/${encodeURI(resolved)}${anchor ? "#" + anchor : ""}`);
+        link.target = "_blank";
+        link.rel = "noopener";
+      }
+    }
+    for (const image of root.querySelectorAll("img[src]")) {
+      const src = image.getAttribute("src");
+      if (!/^(https?:)?\/\//i.test(src)) image.setAttribute("src", RAW + encodeURI(resolve(path, src)));
+      image.loading = "lazy";
+    }
+  }
+
+  function enhance(root) {
+    const seen = new Map();
+    const entries = [];
+    for (const heading of root.querySelectorAll("h1, h2, h3, h4")) {
+      const base = slugify(heading.textContent || "") || "seccion";
+      const count = seen.get(base) || 0;
+      seen.set(base, count + 1);
+      heading.id = count ? `${base}-${count}` : base;
+      const anchor = document.createElement("a");
+      anchor.className = "anchor";
+      anchor.href = `#${heading.id}`;
+      anchor.setAttribute("aria-label", `Enlace a esta sección: ${heading.textContent}`);
+      anchor.textContent = "#";
+      heading.prepend(anchor);
+      if (heading.tagName === "H2" || heading.tagName === "H3") entries.push(heading);
+    }
+    for (const table of root.querySelectorAll("table")) {
+      const wrap = document.createElement("div");
+      wrap.className = "tableWrap";
+      table.replaceWith(wrap);
+      wrap.append(table);
+    }
+    for (const pre of root.querySelectorAll("pre")) {
+      const code = pre.querySelector("code");
+      const language = (code?.className.match(/language-([\w-]+)/) || [])[1] || "texto";
+      const block = document.createElement("div");
+      block.className = "codeBlock";
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const label = document.createElement("span");
+      label.textContent = language;
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "copy";
+      copy.textContent = "Copiar";
+      copy.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText((code || pre).innerText.replace(/\n$/, ""));
+          copy.textContent = "Copiado";
+        } catch {
+          copy.textContent = "No se pudo copiar";
+        }
+        setTimeout(() => { copy.textContent = "Copiar"; }, 1600);
+      });
+      bar.append(label, copy);
+      pre.replaceWith(block);
+      block.append(bar, pre);
+    }
+    toc.replaceChildren(...entries.map((heading) => {
+      const item = document.createElement("li");
+      item.className = heading.tagName === "H3" ? "depth-3" : "depth-2";
+      const link = document.createElement("a");
+      link.href = `#${heading.id}`;
+      link.textContent = heading.textContent.replace(/^#/, "").trim();
+      item.append(link);
+      return item;
+    }));
+    tocPanel.hidden = entries.length < 2;
+    watchHeadings(entries);
+  }
+
+  let observer;
+  function watchHeadings(headings) {
+    observer?.disconnect();
+    if (!("IntersectionObserver" in window) || !headings.length) return;
+    observer = new IntersectionObserver((records) => {
+      const visible = records.filter((record) => record.isIntersecting).map((record) => record.target.id);
+      if (!visible.length) return;
+      for (const link of toc.querySelectorAll("a")) link.classList.toggle("active", link.getAttribute("href") === `#${visible[0]}`);
+    }, { rootMargin: "-80px 0px -70% 0px" });
+    headings.forEach((heading) => observer.observe(heading));
+  }
+
+  async function showUpdated(path, token) {
+    updated.textContent = "";
+    try {
+      const response = await fetch(`https://api.github.com/repos/${REPO}/commits?sha=${BRANCH}&per_page=1&path=${encodeURIComponent(path)}`, { headers: { Accept: "application/vnd.github+json" } });
+      if (!response.ok) return;
+      const [commit] = await response.json();
+      if (!commit || token !== loadToken) return;
+      const date = new Intl.DateTimeFormat("es", { dateStyle: "long", timeStyle: "short" }).format(new Date(commit.commit.committer.date));
+      const message = String(commit.commit.message || "").split("\n")[0].slice(0, 90);
+      const link = document.createElement("a");
+      link.href = commit.html_url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = message;
+      updated.replaceChildren(document.createTextNode(`Actualizado el ${date} · `), link);
+    } catch {
+      /* Sin la API de GitHub la página sigue funcionando. */
+    }
+  }
+
+  function scrollToHash() {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const target = id && document.getElementById(id);
+    if (target) target.scrollIntoView();
+    else window.scrollTo({ top: 0 });
+  }
+
+  async function load() {
+    const token = ++loadToken;
+    const path = currentPath();
+    renderNav(path);
+    source.href = `${GITHUB}/blob/${BRANCH}/${encodeURI(path)}`;
+    body.setAttribute("aria-busy", "true");
+    body.innerHTML = '<div class="loading" role="status" aria-label="Cargando la documentación"><span></span><span></span><span></span><span></span></div>';
+    try {
+      const response = await fetch(RAW + encodeURI(path), { cache: "no-store" });
+      if (!response.ok) throw new Error(response.status === 404 ? "missing" : "network");
+      const markdown = await response.text();
+      if (token !== loadToken) return;
+      const template = document.createElement("template");
+      if (window.marked?.parse) {
+        template.innerHTML = window.marked.parse(markdown, { gfm: true, breaks: false });
+        sanitize(template.content);
+        rewriteLinks(template.content, path);
+        body.replaceChildren(template.content);
+        enhance(body);
+      } else {
+        body.innerHTML = `<p class="notice">No se pudo cargar el formateador de Markdown; se muestra el texto original.</p><div class="raw">${escapeHtml(markdown)}</div>`;
+        tocPanel.hidden = true;
+      }
+      const heading = body.querySelector("h1");
+      document.title = `${TITLES.get(path) || heading?.textContent.replace(/^#/, "").trim() || path} · Vigilia`;
+      meta.hidden = false;
+      showUpdated(path, token);
+      scrollToHash();
+    } catch (error) {
+      if (token !== loadToken) return;
+      meta.hidden = true;
+      tocPanel.hidden = true;
+      body.innerHTML = error.message === "missing"
+        ? `<p class="notice error">Este documento no existe en la rama <code>${BRANCH}</code>. <a href="./">Volver a la presentación</a>.</p>`
+        : `<p class="notice error">No se pudo leer la documentación desde GitHub en este momento. Vuelve a intentarlo o consúltala directamente en <a href="${GITHUB}#readme" target="_blank" rel="noopener">el repositorio</a>.</p>`;
+    } finally {
+      if (token === loadToken) body.setAttribute("aria-busy", "false");
+    }
+  }
+
+  // Los documentos del repositorio se abren aquí mismo, sin recargar la página.
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest?.("a[data-doc]");
+    if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    const url = new URL(link.href);
+    if (url.search === location.search && url.pathname === location.pathname) {
+      history.pushState(null, "", url);
+      scrollToHash();
+      return;
+    }
+    history.pushState(null, "", url);
+    load().then(() => document.getElementById("doc").focus({ preventScroll: true }));
+  });
+  window.addEventListener("popstate", () => {
+    const params = new URLSearchParams(location.search).get("doc") || "README.md";
+    if (params === (document.querySelector('.docs a[aria-current="page"]')?.dataset.doc || "")) scrollToHash();
+    else load();
+  });
+  document.addEventListener("DOMContentLoaded", load);
+})();
+</script>
+</body>
+</html>

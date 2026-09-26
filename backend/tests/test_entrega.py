@@ -18,6 +18,7 @@ JURY_ADMIN_TOTP = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
 JURY_EMPLOYEE_TOTP = "KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU"
 JURY_PASSWORD = "Evaluacion-Jurado-2026"
 JURY_TOKEN = "vig_" + "t" * 40
+DEMO_KEY = "clave-demo-de-prueba"
 RELATIONS = {"Asma leve": "DIRECTA", "Hipertensión arterial": "POSIBLE", "Diabetes mellitus tipo 2": "NINGUNA"}
 
 
@@ -135,6 +136,7 @@ def production(tmp_path, monkeypatch):
             "VIGILIA_JURY_ADMIN_TOTP": JURY_ADMIN_TOTP, "VIGILIA_JURY_ADMIN_PASSWORD": JURY_PASSWORD,
             "VIGILIA_JURY_EMPLOYEE_TOTP": JURY_EMPLOYEE_TOTP, "VIGILIA_JURY_INGRESS_TOKEN": JURY_TOKEN,
             "VIGILIA_SIMULATED_SYSTEMS": "true", "VIGILIA_SIMULATED_BASE_URL": "https://vigilia.test/simulado",
+            "VIGILIA_DEMO_ACCESS": "true", "VIGILIA_KEY": DEMO_KEY,
         }.items():
             monkeypatch.setenv(name, value)
         # Las llamadas salientes a los sistemas simulados se atienden en memoria.
@@ -207,6 +209,9 @@ def test_jury_resources_are_protected_and_self_healing(production):
     assert production.put("/admin/integrations/sim-cobertura", json={
         "kind": "coverage", "name": "x", "endpoint_url": "https://otro.test/api", "field_map": {}}).status_code == 409
     assert production.delete("/admin/integrations/sim-cobertura").status_code == 409
+    # "Probar" una integración de ingreso comprueba su credencial; no llama a su propia URL.
+    assert production.post("/admin/integrations/sim-ingreso-his/test").json()["status"] == "connected"
+    assert production.post("/admin/integrations/sim-cobertura/test").json()["status"] == "connected"
     issued = production.post("/admin/integrations/sim-ingreso-his/credentials")
     assert issued.status_code == 200
     assert production.delete("/admin/integrations/sim-ingreso-his/credentials/sim-ingreso-jurado").status_code == 409
@@ -239,6 +244,62 @@ def test_public_demo_fixture_cannot_sign_in_to_production(production):
     production.headers["x-csrf-token"] = production.get("/auth/options").json()["csrf_token"]
     code = employees.totp(employees.DEMO_TOTP_SECRET, int(time.time() // 30))
     assert production.post("/auth/employee/login", json={"employee_id": "EMP-REC-001", "code": code}).status_code == 401
+
+
+def demo_login(client):
+    client.cookies.clear()
+    client.headers["x-csrf-token"] = client.get("/auth/options").json()["csrf_token"]
+    response = client.post("/auth/demo-access", json={})
+    assert response.status_code == 200, response.text
+    client.headers["x-csrf-token"] = response.json()["csrf_token"]
+    return response.json()
+
+
+def test_demo_mode_lives_inside_the_production_instance(production, monkeypatch):
+    config = production.get("/public-config").json()
+    assert config["mode"] == "production" and config["demo_access"] is True
+    assert production.get("/auth/options").json()["demo_access"] is True
+    session = demo_login(production)
+    assert session["user"]["auth_method"] == "demo_access"
+    assert set(session["user"]["permissions"]) == {"ingress.submit", "ingress.read", "classification.review", "audit.read"}
+    # Sin administración: personas e integraciones quedan para el modo Producción.
+    assert production.get("/admin/employees").status_code == 403
+    assert production.get("/admin/integrations").status_code == 403
+    assert production.get("/auth/badge").status_code == 409
+
+    # El formulario y el simulador usan las mismas fuentes, IA y avisos que producción.
+    data = production.post("/ingresos", json=ingress("DEMO-PROD-1")).json()
+    assert data["origen"] == "demo" and data["poliza"]["numero"] == "POL-1001"
+    assert data["preexistencias"][0]["relacion_sugerida"] == "DIRECTA"
+    assert [(item["canal"], item["estado"]) for item in data["notificaciones"]] == [("admissions", "ENVIADA"), ("case_manager", "ENVIADA")]
+    review = production.post("/ingresos/DEMO-PROD-1/clasificaciones/0/revision",
+                             json={"relation": "DIRECTA", "reason": "Confirmada en la demostración."}).json()
+    assert review["nivel_alerta"] == "ALTO" and review["resultado_actualizado"]
+
+    # La IA de la cuenta demo la administra el despliegue: se prueba, pero no se cambia.
+    settings = production.get("/me/ai").json()
+    config_row = next(item for item in settings["configs"] if item["provider"] == "ollama")
+    assert settings["selected"] == "ollama" and config_row["status"] == "verified"
+    assert production.put("/me/ai/selection", json={"provider": "none"}).status_code == 409
+    assert production.put("/me/ai/providers/ollama", json={"model": "otro", "auth_mode": "cloud"}).status_code == 409
+    probe = production.post("/me/ai/providers/ollama/test", json={"revision": config_row["revision"]})
+    assert probe.status_code == 200 and probe.json()["ok"]
+    assert next(item for item in production.get("/me/ai").json()["configs"] if item["provider"] == "ollama")["status"] == "verified"
+
+    # Un sistema externo usa la clave pública del modo Demo con el contrato canónico.
+    external = TestClient(app)
+    accepted = external.post("/webhook/ingreso", json=ingress("DEMO-KEY-1"), headers={"X-Vigilia-Key": DEMO_KEY})
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["origen"] == "demo" and accepted.json()["poliza"]["numero"] == "POL-1001"
+    assert external.post("/webhook/ingreso", json=ingress("DEMO-KEY-2"), headers={"X-Vigilia-Key": "otra"}).status_code == 401
+    assert external.post("/webhook/ingreso", json=ingress("DEMO-KEY-3")).status_code == 401
+    monkeypatch.setenv("VIGILIA_KEY", "")
+    assert external.post("/webhook/ingreso", json=ingress("DEMO-KEY-4"), headers={"X-Vigilia-Key": ""}).status_code == 401
+
+    # Si se apaga el modo Demo, su sesión y su acceso dejan de valer.
+    monkeypatch.setenv("VIGILIA_DEMO_ACCESS", "false")
+    assert production.get("/auth/me").status_code == 401
+    assert production.post("/auth/demo-access", json={}).status_code == 404
 
 
 def test_simulated_systems_require_their_credential(production, monkeypatch):

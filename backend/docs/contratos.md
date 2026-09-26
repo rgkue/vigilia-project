@@ -4,7 +4,7 @@ La fuente de verdad de los cuerpos canónicos es [`backend/app/schemas.py`](../a
 
 ## Ingreso de un sistema
 
-En demo, `POST /webhook/ingreso` recibe directamente el contrato. En producción requiere una credencial individual de una integración `ingress`:
+En demo, `POST /webhook/ingreso` recibe directamente el contrato (con `X-Vigilia-Key` si el servidor define `VIGILIA_KEY`). En producción con el modo Demo habilitado (`VIGILIA_DEMO_ACCESS=true`) también lo acepta con `X-Vigilia-Key`, que ahí es obligatoria. Fuera de eso, producción requiere una credencial individual de una integración `ingress`:
 
 ```http
 POST /webhook/ingreso

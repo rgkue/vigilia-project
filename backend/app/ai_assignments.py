@@ -27,6 +27,11 @@ def _csrf(request):
     security.require_csrf(request, request.headers.get("x-csrf-token"))
 
 
+def _ensure_mutable(integration_id: str) -> None:
+    from .provisioning import ensure_mutable_integration  # import local: evita un ciclo
+    ensure_mutable_integration(integration_id)
+
+
 def integration_owner(integration_id: str) -> str | None:
     with db.conexion() as conn:
         row = conn.execute(
@@ -53,6 +58,7 @@ def personal(request: Request):
 def consent(integration_id: str, body: Consent, request: Request):
     actor = security.current_profile(request)
     _csrf(request)
+    _ensure_mutable(integration_id)
     status = "accepted" if body.accept else "revoked"
     revision = str(uuid.uuid4())
     with db.conexion() as conn:
@@ -90,6 +96,7 @@ def assignments(request: Request):
 def nominate(integration_id: str, body: Nomination, request: Request):
     actor = security.require_permission(request, "integrations.manage")
     _csrf(request)
+    _ensure_mutable(integration_id)
     revision = str(uuid.uuid4())
     with db.conexion() as conn:
         integration = conn.execute("SELECT kind FROM integration_configs WHERE id=?", (integration_id,)).fetchone()

@@ -529,6 +529,7 @@
 .activityRef { display: flex; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.06); }
 .activityRef code { overflow: hidden; color: var(--client-faint); font-family: var(--mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .reviewBadge { padding: 5px 8px; border: 1px solid rgba(246,207,134,.28); border-radius: 999px; background: rgba(246,207,134,.07); color: #efcf91; font-size: 12.5px; white-space: nowrap; }
+.originBadge { padding: 5px 8px; border: 1px solid rgba(143,206,178,.32); border-radius: 999px; background: rgba(143,206,178,.07); color: #a8e7cb; font-size: 12.5px; white-space: nowrap; }
 
 /* Barra de filtros */
 .activityToolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--client-line); }

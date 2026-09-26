@@ -14,7 +14,7 @@ VARIABLES = {"admisiones": "SLACK_WEBHOOK_ADMISIONES", "gestor_casos": "SLACK_WE
 
 
 async def enviar(destino: str, texto: str, event_id: str | None = None, verdict: str | None = None,
-                 level: str | None = None, review_pending: bool = False) -> Notificacion:
+                 level: str | None = None, review_pending: bool = False, origin: str = "produccion") -> Notificacion:
     if database_mode() == "production":
         kind = "admissions" if destino == "admisiones" else "case_manager"
         config = get_integration(kind)
@@ -25,7 +25,7 @@ async def enviar(destino: str, texto: str, event_id: str | None = None, verdict:
                 response = await client.post(
                     config["endpoint_url"],
                     json={"event_id": event_id, "verdict": verdict, "alert_level": level,
-                          "review_pending": review_pending, "message": texto},
+                          "review_pending": review_pending, "message": texto, "origin": origin},
                     headers=_secret_headers(config),
                 )
                 response.raise_for_status()
@@ -61,10 +61,10 @@ async def enviar(destino: str, texto: str, event_id: str | None = None, verdict:
 
 async def notificar_en_paralelo(msg_admisiones: str, msg_gestor: str, *, event_id: str | None = None,
                                 verdict: str | None = None, level: str | None = None,
-                                review_pending: bool = False) -> list[Notificacion]:
+                                review_pending: bool = False, origin: str = "produccion") -> list[Notificacion]:
     return list(
         await asyncio.gather(
-            enviar("admisiones", msg_admisiones, event_id, verdict, level, review_pending),
-            enviar("gestor_casos", msg_gestor, event_id, verdict, level, review_pending),
+            enviar("admisiones", msg_admisiones, event_id, verdict, level, review_pending, origin),
+            enviar("gestor_casos", msg_gestor, event_id, verdict, level, review_pending, origin),
         )
     )

@@ -77,6 +77,7 @@ def options(request: Request, response: Response):
     demo = db.database_mode() == "demo"
     fixture = demo and os.getenv("VIGILIA_SEED_DEMO", "true").lower() == "true"
     return {"csrf_token": security.create_csrf_token(request), "mode": db.database_mode(),
+            "demo_access": security.demo_access_enabled(),
             "bootstrap_allowed": bootstrap_available(), "oidc_enabled": security.oidc_enabled(),
             "demo_admin_badge": "vigilia:admin:demo-admin" if demo else None,
             "demo_employee": {"employee_id": employees.DEMO_EMPLOYEE_ID,
@@ -172,7 +173,8 @@ def admin_qr(body: QRInput, request: Request):
     user_id = body.qr[len(prefix):] if body.qr.startswith(prefix) else ""
     with db.conexion() as connection:
         row = connection.execute("SELECT id,issuer FROM user_profiles WHERE id=? AND active=TRUE", (user_id,)).fetchone()
-    if not row or row["issuer"] == "employee" or (db.database_mode() != "demo" and row["issuer"] == "demo"):
+    if (not row or row["issuer"] in {"employee", "demo-access"}
+            or (db.database_mode() != "demo" and row["issuer"] == "demo")):
         raise HTTPException(401, "No se pudo validar el QR de acceso corporativo.")
     request.session.clear()
     request.session["qr_intent"] = {"id": user_id, "expires": int(time.time()) + 300}
@@ -194,10 +196,31 @@ def demo_admin(request: Request, response: Response):
     return session_response(request)
 
 
+@router.post("/demo-access")
+def demo_access(request: Request, response: Response):
+    """Modo Demo dentro de la instalación de producción: entra sin credenciales con permisos de operación."""
+    if not security.demo_access_enabled():
+        raise HTTPException(404, "No encontrado.")
+    security.require_csrf(request, request.headers.get("x-csrf-token"))
+    throttle(request)
+    with db.conexion() as connection:
+        row = connection.execute("SELECT active FROM user_profiles WHERE id=? AND issuer='demo-access'",
+                                 (security.DEMO_ACCESS_ID,)).fetchone()
+    if not row or not row["active"]:
+        raise HTTPException(503, "El modo Demo se está preparando. Vuelve a intentarlo en unos segundos.")
+    request.session.clear()
+    request.session.update(user_id=security.DEMO_ACCESS_ID, auth_method="demo_access")
+    response.headers["Cache-Control"] = "no-store"
+    record(security.DEMO_ACCESS_ID, "auth.demo_access.login", "user", security.DEMO_ACCESS_ID)
+    return session_response(request)
+
+
 @router.get("/badge")
 def own_badge(request: Request, response: Response):
     profile = security.current_profile(request, allow_pending_password=True)
     response.headers["Cache-Control"] = "no-store"
+    if profile["auth_method"] == "demo_access":
+        raise HTTPException(409, "La cuenta de demostración no tiene gafete.")
     prefix = "employee" if profile["auth_method"] in {"totp", "password"} else "admin"
     return {"badge": f"vigilia:{prefix}:" + (profile.get("employee_id") or profile["id"])}
 

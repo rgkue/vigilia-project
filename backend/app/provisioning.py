@@ -307,6 +307,53 @@ def retire_demo_fixture() -> None:
     record(SYSTEM_ACTOR, "employee.demo_fixture.disable", "employee", row["user_id"])
 
 
+# --- Modo Demo dentro de la instalación de producción -----------------------------------------------
+
+def ensure_demo_access_account() -> str | None:
+    """Perfil sin credenciales del modo Demo (VIGILIA_DEMO_ACCESS=true); se restablece en cada arranque."""
+    if not security.demo_access_enabled():
+        return None
+    desired = ("demo-access", "Evaluador de demostración", True,
+               json.dumps(security.DEMO_ACCESS_ROLES), json.dumps(security.DEMO_ACCESS_PERMISSIONS))
+    with db.conexion() as connection:
+        row = connection.execute("SELECT * FROM user_profiles WHERE id=?", (security.DEMO_ACCESS_ID,)).fetchone()
+        if row is None:
+            connection.execute(
+                "INSERT INTO user_profiles (id, issuer, subject, email, display_name, active, roles_json, permissions_json, "
+                "created_at, updated_at, created_by) VALUES (?, ?, ?, ?, ?, TRUE, ?, ?, ?, ?, ?)",
+                (security.DEMO_ACCESS_ID, desired[0], security.DEMO_ACCESS_ID, security.DEMO_ACCESS_ID + "@demo.vigilia.invalid",
+                 desired[1], desired[3], desired[4], _now(), _now(), SYSTEM_ACTOR))
+        elif (row["issuer"], row["display_name"], bool(row["active"]), row["roles_json"], row["permissions_json"]) != desired:
+            connection.execute(
+                "UPDATE user_profiles SET issuer=?, display_name=?, active=TRUE, roles_json=?, permissions_json=?, updated_at=? WHERE id=?",
+                (desired[0], desired[1], desired[3], desired[4], _now(), security.DEMO_ACCESS_ID))
+    return security.DEMO_ACCESS_ID
+
+
+def managed_ai_accounts() -> set[str]:
+    """Cuentas cuya IA administra el despliegue con la clave compartida (no se editan desde la interfaz)."""
+    if not shared_ai_settings():
+        return set()
+    if db.database_mode() == "demo":
+        employee_ids = [employees.DEMO_EMPLOYEE_ID]
+        accounts = {demo_ai_owner()}
+    else:
+        employee_ids = [account["id"] for account in jury_accounts()]
+        accounts = {security.DEMO_ACCESS_ID} if security.demo_access_enabled() else set()
+    if employee_ids:
+        marks = ",".join("?" for _ in employee_ids)
+        with db.conexion() as connection:
+            rows = connection.execute(f"SELECT user_id FROM employees WHERE employee_id IN ({marks})", tuple(employee_ids)).fetchall()
+        accounts.update(row["user_id"] for row in rows)
+    return accounts
+
+
+def ensure_personal_ai_editable(user_id: str) -> None:
+    if user_id in managed_ai_accounts():
+        raise HTTPException(409, "La IA de esta cuenta de evaluación la administra el despliegue con la clave del equipo. "
+                                 "Puedes probarla con los casos ficticios, pero no cambiarla.")
+
+
 # --- Punto de entrada ------------------------------------------------------------------------------
 
 def apply() -> None:
@@ -319,5 +366,6 @@ def apply() -> None:
         return
     retire_demo_fixture()
     accounts = ensure_jury_accounts()
+    demo_account = ensure_demo_access_account()
     ensure_simulated_integrations(accounts.get("admin"))
-    provision_shared_ai(list(accounts.values()))
+    provision_shared_ai([*accounts.values(), *([demo_account] if demo_account else [])])

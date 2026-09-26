@@ -85,3 +85,5 @@ class RespuestaIngreso(BaseModel):
     notificaciones: list[Notificacion]
     fuentes: list[EstadoIntegracion] = Field(default_factory=list)
     actualizaciones: list[ActualizacionRevision] = Field(default_factory=list)
+    # Modo en que se originó el ingreso: el modo Demo y producción comparten la instalación.
+    origen: Literal["demo", "produccion"] = "produccion"

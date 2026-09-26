@@ -6,13 +6,13 @@ import { CardNav, type NavGroup } from "./components/CardNav";
 import { Sheet } from "./components/Dialogs";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { IngressDetailSheet } from "./components/IngressDetailSheet";
-import { ModeSelector, readModeChoice } from "./components/ModeSelector";
+import { hasModeChoice, ModeSelector, rememberModeChoice, type InstallationMode } from "./components/ModeSelector";
 import { PasswordChangeForm, PasswordChangeGate } from "./components/PasswordChange";
 import { useToast } from "./components/Toast";
 import { demoCases, makeDemoEvent } from "./data/demoCases";
 import { getOperationalIntegrationStatuses, reviewClassification, type IntegrationStatus } from "./lib/adminApi";
 import { BackendConnectionError, checkBackendHealth, isBackendConfigured, loadIngressEntry, loadIngressList, processDemoIngress, processIngress } from "./lib/agentApi";
-import { getPublicConfig, getSession, logoutSession, SESSION_EXPIRED_EVENT, type CurrentSession } from "./lib/clientApi";
+import { getPublicConfig, getSession, logoutSession, SESSION_EXPIRED_EVENT, startDemoSession, type CurrentSession } from "./lib/clientApi";
 import { evaluateJevCase, loadJevStatus } from "./lib/jevApi";
 import { rolesLabel } from "./lib/labels";
 import { ActivityPage } from "./pages/ActivityPage";
@@ -82,7 +82,9 @@ function App() {
   const [serverMode, setServerMode] = useState<"demo" | "production" | null>(isBackendConfigured ? null : "demo");
   // Selector Demo / Producción al abrir la web; se decide cuando se conoce el modo del servidor.
   const [modeChosen, setModeChosen] = useState(true);
-  const [installationUrls, setInstallationUrls] = useState<{ demo: string | null; production: string | null }>({ demo: null, production: null });
+  const [installation, setInstallation] = useState<{ demoAccess: boolean; demoUrl: string | null; productionUrl: string | null }>({ demoAccess: false, demoUrl: null, productionUrl: null });
+  const [modePending, setModePending] = useState(false);
+  const [modeError, setModeError] = useState("");
   const [session, setSession] = useState<CurrentSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(isBackendConfigured);
   const [authError, setAuthError] = useState("");
@@ -123,7 +125,10 @@ function App() {
   const canReadIngress = isBackendConfigured && permissions.includes("ingress.read");
   const canSubmitIngress = permissions.includes("ingress.submit");
   const canManageIntegrations = permissions.includes("integrations.manage");
-  const simulatorAvailable = serverMode !== "production";
+  // El modo Demo puede vivir dentro de la instalación de producción (cuenta sin credenciales).
+  const isDemoAccess = session?.user.auth_method === "demo_access";
+  const effectiveMode: InstallationMode = serverMode === "demo" || isDemoAccess ? "demo" : "production";
+  const simulatorAvailable = serverMode !== "production" || isDemoAccess;
 
   const clearSessionState = useCallback(() => {
     setSession(null);
@@ -147,8 +152,8 @@ function App() {
         const config = await getPublicConfig();
         if (cancelled) return;
         setServerMode(config.mode);
-        setInstallationUrls({ demo: config.demo_url ?? null, production: config.production_url ?? null });
-        setModeChosen(readModeChoice(config.mode));
+        setInstallation({ demoAccess: Boolean(config.demo_access), demoUrl: config.demo_url ?? null, productionUrl: config.production_url ?? null });
+        setModeChosen(hasModeChoice());
         try {
           const nextSession = await getSession();
           if (!cancelled) setSession(nextSession);
@@ -181,13 +186,13 @@ function App() {
   const resolveRoute = useCallback((next: Route): Route => {
     if (next.section === "login") return isBackendConfigured && !session ? next : { section: "overview" };
     if (isBackendConfigured && !sessionLoading && !session) return { section: "login" };
-    if (next.section === "simulator" && serverMode === "production") return { section: "overview" };
+    if (next.section === "simulator" && serverMode === "production" && !isDemoAccess) return { section: "overview" };
     if (next.section === "admin" && !sessionLoading) {
       if (!canOpenAdmin) return { section: "overview" };
       if (!next.adminTab || !allowedAdminTabs.includes(next.adminTab)) return { section: "admin", adminTab: allowedAdminTabs[0] };
     }
     return next;
-  }, [isBackendConfigured, session, serverMode, sessionLoading, canOpenAdmin, allowedAdminTabs.join("|")]);
+  }, [isBackendConfigured, session, serverMode, isDemoAccess, sessionLoading, canOpenAdmin, allowedAdminTabs.join("|")]);
 
   const pathFor = (next: Route) => next.section === "admin"
     ? `${ADMIN_BASE}/${ADMIN_TAB_PATHS[next.adminTab ?? allowedAdminTabs[0] ?? "people"]}`
@@ -356,7 +361,7 @@ function App() {
     setDemoError("");
     setDemoResult(null);
     try {
-      const response = await processDemoIngress(makeDemoEvent(selectedCase), selectedCase);
+      const response = await processDemoIngress(makeDemoEvent(selectedCase), selectedCase, serverMode === "production" ? "/ingresos" : "/webhook/ingreso");
       setDemoResult(response);
     } catch (submitError) {
       setDemoError(submitError instanceof Error ? submitError.message : "No se pudo ejecutar el escenario.");
@@ -423,8 +428,54 @@ function App() {
             ? "Tu perfil no tiene permiso para registrar ingresos manualmente."
             : "Servicio conectado. Revisa la información antes de enviarla.";
 
-  const modeGate = !modeChosen && <ModeSelector currentMode={serverMode} demoUrl={installationUrls.demo} productionUrl={installationUrls.production} onEnter={() => setModeChosen(true)} />;
-  const changeMode = () => setModeChosen(false);
+  async function enterMode(mode: InstallationMode) {
+    setModePending(true);
+    setModeError("");
+    try {
+      if (mode === "demo") {
+        if (serverMode === "demo" || installation.demoAccess) {
+          if (!session || effectiveMode !== "demo") {
+            const next = await startDemoSession();
+            setSession(next);
+            setServerMode(next.mode);
+            setAuthError("");
+            setAuthNotice("");
+            replaceRoute({ section: "overview" });
+          }
+        } else if (installation.demoUrl) {
+          window.location.assign(`${installation.demoUrl}/?modo=demo`);
+          return;
+        }
+      } else if (serverMode === "production") {
+        if (isDemoAccess) {
+          await logoutSession();
+          clearSessionState();
+          replaceRoute({ section: "login" });
+        }
+      } else if (installation.productionUrl) {
+        window.location.assign(`${installation.productionUrl}/?modo=production`);
+        return;
+      }
+      rememberModeChoice(mode);
+      setModeChosen(true);
+    } catch (enterError) {
+      setModeError(enterError instanceof Error ? enterError.message : "No se pudo cambiar de modo.");
+    } finally {
+      setModePending(false);
+    }
+  }
+
+  const modeGate = !modeChosen && <ModeSelector
+    currentMode={session ? effectiveMode : serverMode === "demo" ? "demo" : null}
+    availability={{
+      demo: serverMode === "demo" || installation.demoAccess || Boolean(installation.demoUrl),
+      production: serverMode === "production" || Boolean(installation.productionUrl),
+    }}
+    pending={modePending}
+    error={modeError}
+    onEnter={(mode) => void enterMode(mode)}
+  />;
+  const changeMode = () => { setModeError(""); setModeChosen(false); };
 
   if (session?.user.must_change_password) {
     return <>{modeGate}<PasswordChangeGate session={session} signingOut={logoutPending} onSignOut={() => void signOut()}
@@ -481,7 +532,7 @@ function App() {
             roleLabel: rolesLabel(session.user.roles),
             identifier: session.user.employee_id ?? session.user.email,
             logoutPending,
-            onBadge: () => setBadgeOpen(true),
+            onBadge: isDemoAccess ? undefined : () => setBadgeOpen(true),
             onChangePassword: session.user.auth_method === "password" ? () => setPasswordOpen(true) : undefined,
             onSignOut: () => void signOut(),
           } : undefined}
@@ -545,7 +596,7 @@ function App() {
           <span className="footerBrand">Vigilia</span>
           <span>Coordinación administrativa de ingresos</span>
           <span className="footerModeActions">
-            <span className={`footerEnv ${serverMode === "production" ? "prod" : "demo"}`}>{serverMode === "production" ? "Producción" : "Demo · datos ficticios"}</span>
+            <span className={`footerEnv ${effectiveMode === "production" ? "prod" : "demo"}`}>{effectiveMode === "production" ? "Producción" : "Demo · datos ficticios"}</span>
             <button className="modeSwitchButton" type="button" onClick={changeMode}>Cambiar modo</button>
           </span>
         </footer>

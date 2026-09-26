@@ -174,8 +174,9 @@ def _public_url(variable: str) -> str | None:
 @app.get("/public-config")
 def public_config():
     mode = database_mode()
-    # Direcciones públicas de las dos instalaciones de evaluación, para el selector de modo.
-    return {"mode": mode, "demo_enabled": mode == "demo",
+    # El selector de modo usa demo_access (Demo dentro de esta misma instalación) o, si existen,
+    # las direcciones de instalaciones separadas.
+    return {"mode": mode, "demo_enabled": mode == "demo", "demo_access": security.demo_access_enabled(),
             "demo_url": _public_url("VIGILIA_DEMO_URL"), "production_url": _public_url("VIGILIA_PRODUCTION_URL")}
 
 
@@ -185,9 +186,11 @@ def integration_status(request: Request):
     return connectors.integration_statuses()
 
 
-def _demo_key(request: Request) -> None:
+def _demo_key(request: Request, required: bool = False) -> None:
     expected = (os.getenv("VIGILIA_KEY") or "").strip()
     if not expected:
+        if required:  # En producción el webhook de demostración nunca queda abierto.
+            raise HTTPException(status_code=401, detail="El webhook de demostración no está habilitado.")
         return
     supplied = request.headers.get("x-vigilia-key", "")
     if not supplied or not secrets.compare_digest(supplied.encode(), expected.encode()):
@@ -241,7 +244,8 @@ def _reserve_event(event: EventoIngreso, payload_hash: str) -> bool:
         return cursor.rowcount == 1
 
 
-async def _submit_event(event: EventoIngreso, actor_id: str, ai_user_id: str | None = None, integration_id: str | None = None) -> RespuestaIngreso:
+async def _submit_event(event: EventoIngreso, actor_id: str, ai_user_id: str | None = None, integration_id: str | None = None,
+                        origin: str = "produccion") -> RespuestaIngreso:
     payload_hash = _event_hash(event)
     cached = _stored_response(event.evento_id, payload_hash)
     if cached is not None:
@@ -253,7 +257,7 @@ async def _submit_event(event: EventoIngreso, actor_id: str, ai_user_id: str | N
         raise HTTPException(status_code=409, detail="El evento ya fue recibido y sigue en proceso.")
 
     try:
-        response = await _process_event(event, ai_user_id, integration_id)
+        response = await _process_event(event, ai_user_id, integration_id, origin)
     except Exception:
         with conexion() as connection:
             connection.execute("UPDATE ingresos SET estado = 'ERROR' WHERE evento_id = ?", (event.evento_id,))
@@ -332,8 +336,10 @@ async def _production_records(event: EventoIngreso):
     return policy_result, conditions, statuses, policy_state, history_state
 
 
-async def _process_event(event: EventoIngreso, ai_user_id: str | None = None, integration_id: str | None = None) -> RespuestaIngreso:
+async def _process_event(event: EventoIngreso, ai_user_id: str | None = None, integration_id: str | None = None,
+                         origin: str = "produccion") -> RespuestaIngreso:
     if database_mode() == "demo":
+        origin = "demo"
         policy, conditions = _demo_records(event)
         sources = [_source("coverage", "connected", True), _source("history", "connected", True)]
         policy_state = "connected" if policy else "not_found"
@@ -360,6 +366,7 @@ async def _process_event(event: EventoIngreso, ai_user_id: str | None = None, in
         verdict=verdict,
         level=level,
         review_pending=review_pending,
+        origin=origin,
     )
     return RespuestaIngreso(
         evento_id=event.evento_id,
@@ -371,6 +378,7 @@ async def _process_event(event: EventoIngreso, ai_user_id: str | None = None, in
         mensaje_gestor=messages.gestor,
         notificaciones=notifications,
         fuentes=sources,
+        origen=origin,
     )
 
 
@@ -385,6 +393,15 @@ async def ingreso(request: Request):
         raise HTTPException(status_code=400, detail="El cuerpo del ingreso no contiene JSON válido.") from exc
 
     integration = None
+    if (database_mode() == "production" and security.demo_access_enabled()
+            and request.headers.get("x-vigilia-key") is not None and request.headers.get("x-vigilia-integration") is None):
+        # Modo Demo dentro de producción: mismo proceso y fuentes, contrato canónico y clave pública.
+        _demo_key(request, required=True)
+        try:
+            event = EventoIngreso.model_validate(payload)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail="El ingreso no cumple el contrato de Vigilia.") from exc
+        return await _submit_event(event, "demo-webhook", ai_user_id=security.DEMO_ACCESS_ID, origin="demo")
     if database_mode() == "production":
         integration_id = request.headers.get("x-vigilia-integration")
         integration = security.verify_integration_credential(integration_id, request.headers.get("authorization"))
@@ -402,7 +419,7 @@ async def ingreso(request: Request):
         except Exception as exc:
             raise HTTPException(status_code=422, detail="El ingreso no cumple el contrato de Vigilia.") from exc
         # En demo no hay integraciones: la cuenta dueña de la IA de demostración clasifica el ingreso.
-        return await _submit_event(event, actor_id, ai_user_id=provisioning.demo_ai_owner())
+        return await _submit_event(event, actor_id, ai_user_id=provisioning.demo_ai_owner(), origin="demo")
 
     return await _submit_event(event, integration["id"], integration_id=integration["integration_id"])
 
@@ -430,7 +447,8 @@ async def ingreso_manual(request: Request):
         event = EventoIngreso.model_validate(payload)
     except Exception as exc:
         raise HTTPException(status_code=422, detail="El ingreso no cumple el contrato de Vigilia.") from exc
-    return await _submit_event(event, profile["id"], ai_user_id=profile["id"])
+    origin = "demo" if database_mode() == "demo" or profile.get("auth_method") == "demo_access" else "produccion"
+    return await _submit_event(event, profile["id"], ai_user_id=profile["id"], origin=origin)
 
 
 @app.get("/ingresos")
@@ -488,6 +506,7 @@ async def _refresh_after_review(event_id: str, reviewer_id: str) -> Actualizacio
         verdict=verdict,
         level=level,
         review_pending=any(rules.pendiente(item) for item in response.preexistencias),
+        origin=response.origen,
     )
     update = ActualizacionRevision(
         en=datetime.now(timezone.utc), revisor_id=reviewer_id,
