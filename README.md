@@ -68,7 +68,7 @@ Para servir frontend y API en dominios distintos, define `VITE_API_BASE_URL` con
 
 ### Despliegue en Vercel
 
-Vercel puede servir la interfaz Vite y el backend FastAPI desde este repositorio. Mantén **Root Directory** en la raíz del repositorio: `api/index.py` publica FastAPI bajo `/api`, y la interfaz de producción usa esa ruta automáticamente. `VITE_API_BASE_URL` solo hace falta si el backend vive en otro dominio; en ese caso configúrala en las variables de entorno de Vercel.
+Vercel puede servir la interfaz Vite y el backend FastAPI desde este repositorio. Mantén **Root Directory** en la raíz del repositorio: `vercel.json` dirige `/api/:path*` a la función `api/index.py`, y la interfaz de producción usa `/api` automáticamente. La regla de `/acceso` permite abrir o recargar directamente la pantalla de acceso. `VITE_API_BASE_URL` solo hace falta si el backend vive en otro dominio; en ese caso configúrala en las variables de entorno de Vercel.
 
 Configura las variables de producción del backend en Vercel antes de iniciar sesión:
 
@@ -76,6 +76,8 @@ Configura las variables de producción del backend en Vercel antes de iniciar se
 - `DATABASE_URL` con una base PostgreSQL persistente y accesible desde las funciones de Vercel. SQLite no sirve como almacenamiento persistente en funciones serverless.
 - `VIGILIA_SESSION_SECRET` con al menos 32 caracteres aleatorios.
 - `VIGILIA_SECRET_ENCRYPTION_KEY` con una clave Fernet válida.
+
+Un `404` con `X-Vercel-Error: NOT_FOUND` en `/api/auth/options` indica que la solicitud no llegó a la función: revisa la versión desplegada y sus reglas de enrutamiento. Un `500` con `FUNCTION_INVOCATION_FAILED` requiere consultar la excepción en los Runtime Logs de Vercel; que el build termine correctamente no garantiza que la configuración y la conexión PostgreSQL permitan iniciar el backend.
 
 Si usas OIDC, registra `https://<dominio-de-vercel>/api/auth/callback` en el proveedor, configura `OIDC_REDIRECT_URL` con esa URL y `OIDC_FRONTEND_ORIGIN` con `https://<dominio-de-vercel>`. Si la API está en otro dominio, también configura CORS y `VIGILIA_SESSION_SAME_SITE=none` como se indica arriba.
 
