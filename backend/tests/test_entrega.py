@@ -209,6 +209,9 @@ def test_jury_resources_are_protected_and_self_healing(production):
     assert production.put("/admin/integrations/sim-cobertura", json={
         "kind": "coverage", "name": "x", "endpoint_url": "https://otro.test/api", "field_map": {}}).status_code == 409
     assert production.delete("/admin/integrations/sim-cobertura").status_code == 409
+    # "Probar" una integración de ingreso comprueba su credencial; no llama a su propia URL.
+    assert production.post("/admin/integrations/sim-ingreso-his/test").json()["status"] == "connected"
+    assert production.post("/admin/integrations/sim-cobertura/test").json()["status"] == "connected"
     issued = production.post("/admin/integrations/sim-ingreso-his/credentials")
     assert issued.status_code == 200
     assert production.delete("/admin/integrations/sim-ingreso-his/credentials/sim-ingreso-jurado").status_code == 409

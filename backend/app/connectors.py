@@ -370,9 +370,32 @@ async def test_integration(integration_id: str, request: Request, x_csrf_token: 
     if not config:
         raise HTTPException(status_code=404, detail="No se encontró la integración.")
     status, message = "connected", None
+    if config["kind"] == "ingress":
+        # El ingreso llega a Vigilia: no hay una salida que probar, sino una credencial con la que recibir eventos.
+        with db.conexion() as connection:
+            active = connection.execute(
+                "SELECT COUNT(*) FROM api_credentials WHERE integration_id = ? AND active = TRUE", (integration_id,)
+            ).fetchone()[0]
+        if not config["enabled"] or not active:
+            status, message = "not_configured", "Habilita la integración y emite una credencial de ingreso para recibir eventos."
+    else:
+        status, message = await _probe(dict(config))
+    now = datetime.now(timezone.utc)
+    with db.conexion() as connection:
+        connection.execute(
+            "UPDATE integration_configs SET status = ?, last_checked_at = ?, last_error = ? WHERE id = ?",
+            (status, now, message, integration_id),
+        )
+    record(actor["id"], "integration.test", "integration", integration_id, {"status": status})
+    return {"status": status, "last_checked_at": now, "message": message}
+
+
+async def _probe(config: dict[str, Any]) -> tuple[str, str | None]:
+    """Llamada de prueba a un sistema remoto (cobertura, antecedentes o destino de avisos)."""
+    status, message = "connected", None
     try:
         async with httpx.AsyncClient(timeout=CONNECTOR_TIMEOUT_SECONDS, follow_redirects=False) as client:
-            headers = _secret_headers(dict(config))
+            headers = _secret_headers(config)
             if config["method"] == "POST":
                 response_context = client.stream("POST", config["endpoint_url"], json={config["lookup_parameter"]: "VIGILIA_TEST"}, headers=headers)
             else:
@@ -382,14 +405,7 @@ async def test_integration(integration_id: str, request: Request, x_csrf_token: 
                     status, message = "unavailable", f"El sistema respondió HTTP {response.status_code}."
     except (httpx.HTTPError, RuntimeError) as exc:
         status, message = "unavailable", f"No se pudo conectar ({type(exc).__name__})."
-    now = datetime.now(timezone.utc)
-    with db.conexion() as connection:
-        connection.execute(
-            "UPDATE integration_configs SET status = ?, last_checked_at = ?, last_error = ? WHERE id = ?",
-            (status, now, message, integration_id),
-        )
-    record(actor["id"], "integration.test", "integration", integration_id, {"status": status})
-    return {"status": status, "last_checked_at": now, "message": message}
+    return status, message
 
 
 @router.post("/{integration_id}/credentials")

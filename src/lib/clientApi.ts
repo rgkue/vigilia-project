@@ -29,11 +29,15 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   }
 }
 
-export async function parseApiError(response: Response): Promise<Error> {
+/** sessionExpected=false: llamadas previas al login, donde un 401 no significa que una sesión terminó. */
+export async function parseApiError(response: Response, options: { sessionExpected?: boolean } = {}): Promise<Error> {
   const payload: unknown = await response.json().catch(() => ({}));
   const detail = payload && typeof payload === "object" && "detail" in payload && typeof payload.detail === "string"
     ? payload.detail
     : "";
+  if (response.status === 401 && options.sessionExpected === false) {
+    return new Error(detail || "No se pudo validar el acceso. Revisa los datos e inténtalo de nuevo.");
+  }
   if (response.status === 401) {
     // App vuelve a la pantalla de acceso si había una sesión abierta.
     window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
@@ -51,14 +55,14 @@ export async function parseApiError(response: Response): Promise<Error> {
   return new Error(detail || (response.status >= 500 ? "El servicio tuvo un problema." : "No se pudo completar la operación."));
 }
 
-export async function jsonRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function jsonRequest<T>(path: string, init: RequestInit = {}, options: { sessionExpected?: boolean } = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   const response = await apiFetch(path, {
     ...init,
     headers,
   });
-  if (!response.ok) throw await parseApiError(response);
+  if (!response.ok) throw await parseApiError(response, options);
   return response.json() as Promise<T>;
 }
 
@@ -104,16 +108,17 @@ export async function getPublicConfig(): Promise<PublicConfig> {
 
 /** Entra en modo Demo: administrador demo si la instalación es demo; si no, la cuenta demo sin credenciales. */
 export async function startDemoSession(): Promise<CurrentSession> {
-  const options = await jsonRequest<{ csrf_token: string; mode: "demo" | "production"; demo_admin_badge?: string | null }>("/auth/options");
+  const preLogin = { sessionExpected: false };
+  const options = await jsonRequest<{ csrf_token: string; mode: "demo" | "production"; demo_admin_badge?: string | null }>("/auth/options", {}, preLogin);
   setCsrfToken(options.csrf_token);
   if (options.mode === "demo" && options.demo_admin_badge) {
-    const intent = await jsonRequest<{ csrf_token: string }>("/auth/admin/qr/start", { method: "POST", body: JSON.stringify({ qr: options.demo_admin_badge }) });
+    const intent = await jsonRequest<{ csrf_token: string }>("/auth/admin/qr/start", { method: "POST", body: JSON.stringify({ qr: options.demo_admin_badge }) }, preLogin);
     setCsrfToken(intent.csrf_token);
-    const demoAdmin = await jsonRequest<CurrentSession>("/auth/demo-admin", { method: "POST", body: "{}" });
+    const demoAdmin = await jsonRequest<CurrentSession>("/auth/demo-admin", { method: "POST", body: "{}" }, preLogin);
     setCsrfToken(demoAdmin.csrf_token);
     return demoAdmin;
   }
-  const session = await jsonRequest<CurrentSession>("/auth/demo-access", { method: "POST", body: "{}" });
+  const session = await jsonRequest<CurrentSession>("/auth/demo-access", { method: "POST", body: "{}" }, preLogin);
   setCsrfToken(session.csrf_token);
   return session;
 }
