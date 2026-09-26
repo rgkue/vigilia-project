@@ -167,7 +167,8 @@ def conexion() -> Iterator[ConnectionAdapter]:
             from psycopg.rows import dict_row
         except ImportError as exc:  # pragma: no cover - depends on production extra
             raise RuntimeError("Instala psycopg[binary] para usar PostgreSQL.") from exc
-        raw = psycopg.connect(_postgres_url(), row_factory=dict_row)
+        # Sin sentencias preparadas: el pooler de Neon/PgBouncer puede atender cada consulta en otra sesión.
+        raw = psycopg.connect(_postgres_url(), row_factory=dict_row, prepare_threshold=None)
     else:
         raw = sqlite3.connect(_sqlite_path(), timeout=15)
         raw.row_factory = sqlite3.Row

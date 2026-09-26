@@ -1,0 +1,8 @@
+{
+  "evento_id": "EVT-JURADO-001",
+  "cedula": "8-100-100",
+  "hospital": "Hospital Demo · Emergencias",
+  "motivo_ingreso": "Crisis asmática con dificultad para respirar",
+  "triage": 2,
+  "fecha_ingreso": "2026-09-26T10:00:00-05:00"
+}

@@ -40,7 +40,8 @@ function delivery(notification: JsonRecord | undefined): NotificationResult {
   const channel = text(notification.canal) ?? "sin dato";
   if (state === "NO_CONFIGURADA") return { status: "not_configured", channel };
   if (state === "ERROR") return { status: "failed", channel };
-  if (state === "ENVIADA" && channel.toLowerCase() === "log") {
+  // SIMULADA (o el formato anterior ENVIADA/log): el aviso no salió del servidor.
+  if (state === "SIMULADA" || (state === "ENVIADA" && channel.toLowerCase() === "log")) {
     return { status: "simulated", channel };
   }
   if (state === "ENVIADA") return { status: "sent", channel };
@@ -210,6 +211,20 @@ function normalizeResponse(value: unknown, eventId: string, createdFallback?: st
     reviewPending: typeof payload.revision_pendiente === "boolean"
       ? payload.revision_pendiente
       : preexistingItems.some((item) => item.revisada !== true),
+    updates: Array.isArray(payload.actualizaciones) ? payload.actualizaciones.map((item) => {
+      const update = record(item);
+      return {
+        at: text(update.en) ?? null,
+        previousVerdict: administrativeVerdict(update.veredicto_anterior),
+        previousLevel: alertLevel(update.nivel_anterior),
+        verdict: administrativeVerdict(update.veredicto),
+        level: alertLevel(update.nivel_alerta),
+        notifications: {
+          admissions: notificationFor(update.notificaciones, "admisiones"),
+          case_manager: notificationFor(update.notificaciones, "gestor_casos"),
+        },
+      };
+    }) : [],
   };
 }
 

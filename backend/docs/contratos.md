@@ -38,22 +38,23 @@ La respuesta incluye `evento_id`, `veredicto`, `nivel_alerta`, `poliza`, `preexi
 | `preexistencias[].relacion_sugerida` | Relación original cuando hubo sugerencia; `null` cuando no se produjo. |
 | `preexistencias[].revisada` | Indica una resolución humana registrada. Incluye motivo, revisor y fecha cuando aplica. |
 | `fuentes[].estado` | `not_configured`, `connected`, `unavailable`, `invalid_response` o `not_found`; `consultada` indica si Vigilia llamó a la fuente. |
-| `notificaciones[].estado` | `ENVIADA`, `ERROR` o `NO_CONFIGURADA`. Los avisos muestran si la clasificación sigue pendiente. |
+| `actualizaciones[]` | Cambios del resultado general después de una revisión humana: resultado anterior y nuevo, revisor, fecha, mensajes y estado de los avisos reenviados. |
+| `notificaciones[].estado` | `ENVIADA`, `ERROR`, `NO_CONFIGURADA` o `SIMULADA` (demo sin canal configurado: el aviso no salió del servidor). Los avisos muestran si la clasificación sigue pendiente. |
 
 `NO_ENCONTRADO` solo describe una respuesta válida de la fuente sin póliza/registro. Integración no configurada, caída, respuesta malformada o mapeo inválido producen `PENDIENTE`. Un 404 HTTP se considera endpoint inaccesible, no ausencia de persona. Una respuesta válida sin registro puede expresarse como `null` para cobertura o como lista vacía en la ruta mapeada de antecedentes.
 
 ## Ingreso manual y consulta
 
-- `POST /ingresos`: contrato canónico, sesión OIDC, CSRF y permiso `ingress.submit`. En instalaciones donde el formulario web se habilite, el evento va siempre al backend; no hay fallback a datos ficticios.
-- `GET /ingresos?limite=10`: sesión OIDC y permiso `ingress.read`. Devuelve respuestas administrativas recientes sin cédula, hospital ni motivo de ingreso.
+- `POST /ingresos`: contrato canónico, sesión iniciada (cuenta de Vigilia u OIDC), CSRF y permiso `ingress.submit`. En instalaciones donde el formulario web se habilite, el evento va siempre al backend; no hay fallback a datos ficticios.
+- `GET /ingresos?limite=10`: sesión iniciada y permiso `ingress.read`. Devuelve respuestas administrativas recientes sin cédula, hospital ni motivo de ingreso.
 - `GET /integrations/status`: sesión y permiso `ingress.read`; estado de conectores sin secretos.
 - `GET /public-config`: identifica modo demo o producción. No contiene datos de personas ni secretos.
 
-Un evento ya completado con el mismo identificador y la misma carga devuelve la respuesta persistida. Reutilizar el ID con otra carga devuelve HTTP 409. El sistema no vuelve a emitir notificaciones por un evento duplicado.
+Un evento ya completado con el mismo identificador y la misma carga devuelve la respuesta persistida. Reutilizar el ID con otra carga devuelve HTTP 409. El sistema no vuelve a emitir notificaciones por un evento duplicado. Si el primer intento terminó en error, o quedó interrumpido más de `VIGILIA_STALE_SECONDS` (120 s por defecto), reenviar la misma carga lo procesa de nuevo; mientras sigue en proceso responde HTTP 409.
 
 ## Resolución humana
 
-`POST /ingresos/{evento_id}/clasificaciones/{índice}/revision` requiere sesión OIDC, CSRF y permiso `classification.review`.
+`POST /ingresos/{evento_id}/clasificaciones/{índice}/revision` requiere sesión iniciada, CSRF y permiso `classification.review`.
 
 ```json
 {
@@ -62,7 +63,7 @@ Un evento ya completado con el mismo identificador y la misma carga devuelve la 
 }
 ```
 
-`relation` acepta `DIRECTA`, `POSIBLE` o `NINGUNA`; `reason` requiere entre 3 y 1000 caracteres. Vigilia conserva sugerencia original, resolución, motivo, identidad revisora y fecha en el ingreso y en `review_actions`; también escribe un evento de auditoría. Revisar no cambia los avisos ya enviados.
+`relation` acepta `DIRECTA`, `POSIBLE` o `NINGUNA`; `reason` requiere entre 3 y 1000 caracteres. Vigilia conserva sugerencia original, resolución, motivo, identidad revisora y fecha en el ingreso y en `review_actions`; también escribe un evento de auditoría. Después recalcula el resultado general con las mismas reglas: si cambia el veredicto o el nivel, actualiza el ingreso, envía un aviso de actualización a admisiones y al gestor de casos y lo registra en `actualizaciones`. La respuesta incluye `veredicto`, `nivel_alerta` y `resultado_actualizado`.
 
 ## Contratos de fuentes
 

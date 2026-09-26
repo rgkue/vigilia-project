@@ -1,11 +1,11 @@
-"""Notificaciones simultáneas; sin webhooks configurados se simulan en el log."""
+"""Notificaciones simultáneas; sin canales configurados quedan como simuladas en el log."""
 import asyncio
 import logging
 import os
 
 import httpx
 
-from .connectors import get_integration, _secret_headers
+from .connectors import CONNECTOR_TIMEOUT_SECONDS, get_integration, _secret_headers
 from .db import database_mode, conexion
 from .schemas import Notificacion
 
@@ -13,15 +13,15 @@ logger = logging.getLogger(__name__)
 VARIABLES = {"admisiones": "SLACK_WEBHOOK_ADMISIONES", "gestor_casos": "SLACK_WEBHOOK_GESTOR"}
 
 
-async def _enviar(destino: str, texto: str, event_id: str | None = None, verdict: str | None = None,
-                  level: str | None = None, review_pending: bool = False) -> Notificacion:
+async def enviar(destino: str, texto: str, event_id: str | None = None, verdict: str | None = None,
+                 level: str | None = None, review_pending: bool = False) -> Notificacion:
     if database_mode() == "production":
         kind = "admissions" if destino == "admisiones" else "case_manager"
         config = get_integration(kind)
         if not config:
             return Notificacion(destino=destino, canal="sin configurar", estado="NO_CONFIGURADA")
         try:
-            async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
+            async with httpx.AsyncClient(timeout=CONNECTOR_TIMEOUT_SECONDS, follow_redirects=False) as client:
                 response = await client.post(
                     config["endpoint_url"],
                     json={"event_id": event_id, "verdict": verdict, "alert_level": level,
@@ -47,11 +47,12 @@ async def _enviar(destino: str, texto: str, event_id: str | None = None, verdict
     url = os.getenv(VARIABLES[destino])
     enabled = os.getenv("SLACK_ENABLED", "false").strip().lower() == "true"
     if not enabled or not url:
+        # Nada salió del servidor: no se informa como enviada.
         logger.info("Notificación simulada para %s.", destino)
-        return Notificacion(destino=destino, canal="log", estado="ENVIADA")
+        return Notificacion(destino=destino, canal="log", estado="SIMULADA")
     try:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
-            (await client.post(url, json={"text": texto})).raise_for_status()
+        async with httpx.AsyncClient(timeout=CONNECTOR_TIMEOUT_SECONDS, follow_redirects=False) as client:
+            (await client.post(url, json={"text": "Demo · " + texto})).raise_for_status()
         return Notificacion(destino=destino, canal="slack", estado="ENVIADA")
     except httpx.HTTPError as exc:
         logger.warning("No se pudo enviar el aviso a %s (%s).", destino, type(exc).__name__)
@@ -63,7 +64,7 @@ async def notificar_en_paralelo(msg_admisiones: str, msg_gestor: str, *, event_i
                                 review_pending: bool = False) -> list[Notificacion]:
     return list(
         await asyncio.gather(
-            _enviar("admisiones", msg_admisiones, event_id, verdict, level, review_pending),
-            _enviar("gestor_casos", msg_gestor, event_id, verdict, level, review_pending),
+            enviar("admisiones", msg_admisiones, event_id, verdict, level, review_pending),
+            enviar("gestor_casos", msg_gestor, event_id, verdict, level, review_pending),
         )
     )

@@ -86,7 +86,15 @@ export async function getSession(): Promise<CurrentSession> {
   return session;
 }
 
-export async function getPublicConfig(): Promise<{ mode: "demo" | "production"; demo_enabled: boolean }> {
+export interface PublicConfig {
+  mode: "demo" | "production";
+  demo_enabled: boolean;
+  /** Direcciones públicas de las instalaciones de evaluación (selector de modo). */
+  demo_url?: string | null;
+  production_url?: string | null;
+}
+
+export async function getPublicConfig(): Promise<PublicConfig> {
   const response = await apiFetch("/public-config");
   if (!response.ok) throw await parseApiError(response);
   return response.json();

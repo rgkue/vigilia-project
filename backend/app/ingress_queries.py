@@ -188,7 +188,8 @@ def summary(request: Request, inicio_dia: str | None = None, incluir_pruebas: bo
             delivery["fallidos"] += total
         elif row["estado"] == "NO_CONFIGURADA":
             delivery["sin_configurar"] += total
-        elif row["estado"] == "ENVIADA" and str(row["canal"]).casefold() == "log":
+        elif row["estado"] == "SIMULADA" or (row["estado"] == "ENVIADA" and str(row["canal"]).casefold() == "log"):
+            # SIMULADA (y el formato anterior ENVIADA/log): el aviso no salió del servidor.
             delivery["internos"] += total
         elif row["estado"] == "ENVIADA":
             delivery["enviados"] += total

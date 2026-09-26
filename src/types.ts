@@ -125,6 +125,17 @@ export interface AgentResponse {
   reason?: string | null;
   maskedId?: string | null;
   reviewPending?: boolean;
+  /** Cambios del resultado general tras una revisión humana, con los avisos reenviados. */
+  updates?: OutcomeUpdate[];
+}
+
+export interface OutcomeUpdate {
+  at: string | null;
+  previousVerdict: AdministrativeVerdict;
+  previousLevel: AlertLevel;
+  verdict: AdministrativeVerdict;
+  level: AlertLevel;
+  notifications: { admissions: NotificationResult; case_manager: NotificationResult };
 }
 
 export interface IngressListFilters {

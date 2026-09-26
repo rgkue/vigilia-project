@@ -626,6 +626,7 @@
 .oneTimeToken .adminFormActions { margin-top: 4px; }
 .footerEnv { justify-self: end; padding: 5px 10px; border: 1px solid var(--client-line); border-radius: 999px; color: var(--client-faint); font-size: 12.5px; }
 .footerEnv.demo { border-color: rgba(246,207,134,.28); color: #efcf91; }
+.footerModeActions { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; justify-self: end; gap: 8px; }
 
 @media (max-width: 1100px) {
   .clientMetrics.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -635,7 +636,7 @@
   .clientMetrics:not(.four) { max-width: 380px; grid-template-columns: minmax(0, 1fr); }
   .activityToolbar > .toolbarSelect { flex: 1 1 45%; }
   .toolbarSelect select { width: 100%; }
-  .footerEnv { grid-column: 2; grid-row: 1 / span 2; }
+  .footerModeActions { grid-column: 2; grid-row: 1 / span 2; }
   .mappingHead { display: none; }
 }
 

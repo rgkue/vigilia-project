@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import db, employees, local_accounts, security
+from . import db, employees, local_accounts, provisioning, security
 from .audit import record
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -137,6 +137,7 @@ def change_password(body: PasswordChange, request: Request, response: Response):
     profile = security.current_profile(request, allow_pending_password=True)
     if profile["issuer"] != "employee" or profile["auth_method"] != "password":
         raise HTTPException(409, "Tu cuenta no usa contraseña de Vigilia.")
+    provisioning.ensure_mutable_account(profile["id"])
     throttle(request, profile["id"])
     local_accounts.ensure_not_locked(profile["id"])
     with db.conexion() as connection:

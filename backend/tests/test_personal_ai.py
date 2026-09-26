@@ -12,7 +12,7 @@ from itsdangerous import TimestampSigner
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import ai_assignments as grants, ai_providers as ai, ai_subscriptions as oauth, db, security
-from test_ai_providers import client as base_client, completion, save
+from test_ai_providers import client as base_client, completion, save, synthetic_response
 
 real_profile = security.current_profile
 real_csrf = security.require_csrf
@@ -44,7 +44,7 @@ def test_keys_models_selection_and_probes_are_personal(accounts, monkeypatch):
     assert bob.get("/me/ai").json()["configs"] == []
     assert bob.put("/me/ai/providers/groq", json={"auth_mode": "api_key", "revision": first["revision"]}).status_code == 409
     second = save(bob, secret="bob-fictitious-key", model="bob-model")
-    mock = AsyncMock(return_value=completion())
+    mock = AsyncMock(side_effect=synthetic_response)
     monkeypatch.setattr(ai, "_request", mock)
     assert bob.post("/me/ai/providers/groq/test", json={"revision": first["revision"]}).status_code == 409
     assert alice.post("/me/ai/providers/groq/test", json={"revision": first["revision"]}).json()["ok"]
@@ -65,7 +65,7 @@ def test_keys_models_selection_and_probes_are_personal(accounts, monkeypatch):
 def test_consent_is_owner_only_and_admin_withdrawal_cannot_be_undone(accounts, monkeypatch):
     alice, bob = accounts
     config = save(bob)
-    monkeypatch.setattr(ai, "_request", AsyncMock(return_value=completion()))
+    monkeypatch.setattr(ai, "_request", AsyncMock(side_effect=synthetic_response))
     bob.post("/me/ai/providers/groq/test", json={"revision": config["revision"]})
     bob.put("/me/ai/selection", json={"provider": "groq", "revision": config["revision"]})
     nomination = alice.put("/admin/ai/assignments/hospital", json={"user_id": "another-admin"}).json()
@@ -85,7 +85,7 @@ def test_consent_is_owner_only_and_admin_withdrawal_cannot_be_undone(accounts, m
 def test_dispatch_uses_explicit_owner_and_never_legacy_shared_account(accounts, monkeypatch):
     alice, bob = accounts
     first = save(alice)
-    mock = AsyncMock(return_value=completion())
+    mock = AsyncMock(side_effect=synthetic_response)
     monkeypatch.setattr(ai, "_request", mock)
     alice.post("/me/ai/providers/groq/test", json={"revision": first["revision"]})
     alice.put("/me/ai/selection", json={"provider": "groq", "revision": first["revision"]})

@@ -84,12 +84,16 @@ class ApiContractTests(unittest.TestCase):
 
     def test_optional_api_key_behavior_is_preserved(self):
         with patch.dict(os.environ, {"VIGILIA_KEY": "unit-test-key"}, clear=False):
-            self.assertEqual(self.client.post("/webhook/ingreso", json=event()).status_code, 401)
-            response = self.client.post(
-                "/webhook/ingreso",
-                json=event("AUTH-OK"),
-                headers={"X-Vigilia-Key": "unit-test-key"},
-            )
+            with TestClient(app) as external:
+                self.assertEqual(external.post("/webhook/ingreso", json=event()).status_code, 401)
+                response = external.post(
+                    "/webhook/ingreso",
+                    json=event("AUTH-OK"),
+                    headers={"X-Vigilia-Key": "unit-test-key"},
+                )
+            without_csrf = TestClient(app)
+            without_csrf.cookies = self.client.cookies
+            self.assertEqual(without_csrf.post("/webhook/ingreso", json=event("NO-CSRF")).status_code, 401)
         self.assertEqual(response.status_code, 200)
 
     def test_rate_limit_still_caps_requests_at_twenty_per_minute(self):

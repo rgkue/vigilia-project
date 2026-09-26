@@ -54,7 +54,22 @@ class Mensajes(BaseModel):
 class Notificacion(BaseModel):
     destino: Literal["admisiones", "gestor_casos"]
     canal: str
-    estado: Literal["ENVIADA", "ERROR", "NO_CONFIGURADA"]
+    # SIMULADA: sin canal configurado, el aviso solo quedó en el registro del servidor.
+    estado: Literal["ENVIADA", "ERROR", "NO_CONFIGURADA", "SIMULADA"]
+
+
+class ActualizacionRevision(BaseModel):
+    """Cambio del resultado general después de una revisión humana, con los avisos reenviados."""
+
+    en: datetime
+    revisor_id: str
+    veredicto_anterior: Veredicto
+    nivel_anterior: Alerta
+    veredicto: Veredicto
+    nivel_alerta: Alerta
+    mensaje_admisiones: str
+    mensaje_gestor: str
+    notificaciones: list[Notificacion]
 
 
 class RespuestaIngreso(BaseModel):
@@ -69,3 +84,4 @@ class RespuestaIngreso(BaseModel):
     mensaje_gestor: str
     notificaciones: list[Notificacion]
     fuentes: list[EstadoIntegracion] = Field(default_factory=list)
+    actualizaciones: list[ActualizacionRevision] = Field(default_factory=list)
