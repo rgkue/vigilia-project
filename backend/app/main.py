@@ -20,8 +20,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import admin, agent, auth, connectors, rules, security
+from . import admin, agent, ai_assignments, ai_providers, ai_subscriptions, auth, connectors, rules, security
 from .audit import record
+from . import access, employees, ingress_queries
 from .db import conexion, database_mode, init_db
 from .notifier import notificar_en_paralelo
 from .schemas import EstadoIntegracion, EventoIngreso, PolizaInfo, RespuestaIngreso
@@ -49,10 +50,25 @@ async def lifespan(_: FastAPI):
     if database_mode() == "production":
         security.validate_production_security()
     init_db()
-    yield
+    try:
+        yield
+    finally:
+        pending = list(ai_subscriptions.tasks.values())
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
 
 app = FastAPI(title="Vigilia", description="Coordinación administrativa de ingresos a emergencias", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def private_auth_responses(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(("/auth/", "/admin/employees")):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.exception_handler(RequestValidationError)
@@ -84,9 +100,23 @@ app.add_middleware(
     same_site=(os.getenv("VIGILIA_SESSION_SAME_SITE") or "lax").strip().casefold(),
     https_only=database_mode() == "production",
 )
+@app.middleware("http")
+async def personal_ai_cache_policy(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(("/me/ai", "/admin/ai")):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 app.include_router(auth.router)
+app.include_router(access.router)
+app.include_router(employees.router)
 app.include_router(admin.router)
 app.include_router(connectors.router)
+app.include_router(ai_providers.router)
+app.include_router(ai_assignments.router)
+app.include_router(ai_subscriptions.router)
+app.include_router(ingress_queries.router)
 
 
 @app.get("/health")
@@ -150,7 +180,7 @@ def _reserve_event(event: EventoIngreso, payload_hash: str) -> bool:
         return cursor.rowcount == 1
 
 
-async def _submit_event(event: EventoIngreso, actor_id: str) -> RespuestaIngreso:
+async def _submit_event(event: EventoIngreso, actor_id: str, ai_user_id: str | None = None, integration_id: str | None = None) -> RespuestaIngreso:
     payload_hash = _event_hash(event)
     cached = _stored_response(event.evento_id, payload_hash)
     if cached is not None:
@@ -162,7 +192,7 @@ async def _submit_event(event: EventoIngreso, actor_id: str) -> RespuestaIngreso
         raise HTTPException(status_code=409, detail="El evento ya fue recibido y sigue en proceso.")
 
     try:
-        response = await _process_event(event)
+        response = await _process_event(event, ai_user_id, integration_id)
     except Exception:
         with conexion() as connection:
             connection.execute("UPDATE ingresos SET estado = 'ERROR' WHERE evento_id = ?", (event.evento_id,))
@@ -241,7 +271,7 @@ async def _production_records(event: EventoIngreso):
     return policy_result, conditions, statuses, policy_state, history_state
 
 
-async def _process_event(event: EventoIngreso) -> RespuestaIngreso:
+async def _process_event(event: EventoIngreso, ai_user_id: str | None = None, integration_id: str | None = None) -> RespuestaIngreso:
     if database_mode() == "demo":
         policy, conditions = _demo_records(event)
         sources = [_source("coverage", "connected", True), _source("history", "connected", True)]
@@ -250,7 +280,9 @@ async def _process_event(event: EventoIngreso) -> RespuestaIngreso:
     else:
         policy, conditions, sources, policy_state, history_state = await _production_records(event)
 
-    relations = await agent.relacionar_preexistencias(event, conditions) if conditions else []
+    if integration_id:
+        ai_user_id = ai_assignments.integration_owner(integration_id)
+    relations = await agent.relacionar_preexistencias(event, conditions, ai_user_id=ai_user_id, personal=True) if conditions else []
     for relation in relations:
         if relation.relacion_sugerida is None and "pendiente" not in relation.justificacion.casefold():
             relation.relacion_sugerida = relation.relacion
@@ -317,7 +349,8 @@ async def ingreso(request: Request):
         except Exception as exc:
             raise HTTPException(status_code=422, detail="El ingreso no cumple el contrato de Vigilia.") from exc
 
-    return await _submit_event(event, integration["id"] if integration else "demo")
+    return await _submit_event(event, integration["id"] if integration else "demo",
+                               integration_id=integration["integration_id"] if integration else None)
 
 
 @app.post("/ingresos", response_model=RespuestaIngreso)
@@ -330,7 +363,7 @@ async def ingreso_manual(request: Request):
         event = EventoIngreso.model_validate(payload)
     except Exception as exc:
         raise HTTPException(status_code=422, detail="El ingreso no cumple el contrato de Vigilia.") from exc
-    return await _submit_event(event, profile["id"])
+    return await _submit_event(event, profile["id"], ai_user_id=profile["id"])
 
 
 @app.get("/ingresos")

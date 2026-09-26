@@ -20,7 +20,7 @@ class UserInput(BaseModel):
 
     email: str = Field(min_length=3, max_length=254)
     display_name: str = Field(min_length=1, max_length=160)
-    roles: list[str] = Field(default_factory=list, max_length=4)
+    roles: list[str] = Field(default_factory=list, max_length=5)
     permissions: list[str] = Field(default_factory=list, max_length=32)
 
     @field_validator("email")
@@ -58,8 +58,7 @@ def _user_json(row) -> dict:
 
 
 def _active_user_managers(connection) -> int:
-    rows = connection.execute("SELECT permissions_json FROM user_profiles WHERE active = TRUE").fetchall()
-    return sum("users.manage" in json.loads(row["permissions_json"] or "[]") for row in rows)
+    return security.active_user_managers(connection)
 
 
 @router.get("/users")
@@ -67,7 +66,7 @@ def list_users(request: Request):
     actor = security.require_permission(request, "users.manage")
     with db.conexion() as connection:
         rows = connection.execute(
-            "SELECT * FROM user_profiles ORDER BY active DESC, lower(display_name), lower(email)"
+            "SELECT * FROM user_profiles WHERE issuer != 'employee' ORDER BY active DESC, lower(display_name), lower(email)"
         ).fetchall()
     if actor["issuer"] == "demo":
         record(actor["id"], "user.list", "user", None)
@@ -116,6 +115,8 @@ def update_user(user_id: str, body: UserInput, request: Request, x_csrf_token: s
         existing = connection.execute("SELECT * FROM user_profiles WHERE id = ?", (user_id,)).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="No se encontró el perfil.")
+        if existing["issuer"] == "employee":
+            raise HTTPException(409, "Administra esta cuenta local desde Personas.")
         if body.email != existing["email"] and existing["subject"]:
             raise HTTPException(status_code=409, detail="No se puede cambiar el correo de una identidad OIDC vinculada.")
         connection.execute(
@@ -158,7 +159,8 @@ def list_permissions(request: Request):
 
 
 @router.get("/audit")
-def list_audit(request: Request, limit: int = 100):
+def list_audit(request: Request, limit: int = 100, offset: int = 0, accion: str | None = None):
     actor = security.require_permission(request, "audit.read")
-    record(actor["id"], "audit.read", "audit", None, {"limit": max(1, min(limit, 500))})
-    return recent(limit)
+    prefix = (accion or "").strip()[:60] or None
+    record(actor["id"], "audit.read", "audit", None, {"limit": max(1, min(limit, 500)), "offset": max(0, offset), "action": prefix})
+    return recent(limit, offset, prefix)

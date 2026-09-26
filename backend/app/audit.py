@@ -21,11 +21,16 @@ def record(actor_id: str | None, action: str, resource_type: str, resource_id: s
         )
 
 
-def recent(limit: int = 100) -> list[dict[str, Any]]:
+def recent(limit: int = 100, offset: int = 0, action_prefix: str | None = None) -> list[dict[str, Any]]:
+    clause, parameters = "", []
+    if action_prefix:
+        clause = "WHERE action LIKE ? ESCAPE '\\' "
+        escaped = action_prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        parameters.append(escaped + "%")
     with conexion() as connection:
         rows = connection.execute(
             "SELECT id, actor_id, action, resource_type, resource_id, details_json, created_at "
-            "FROM audit_events ORDER BY created_at DESC LIMIT ?",
-            (max(1, min(limit, 500)),),
+            f"FROM audit_events {clause}ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (*parameters, max(1, min(limit, 500)), max(0, offset)),
         ).fetchall()
     return [{**dict(row), "details": json.loads(row["details_json"] or "{}")} for row in rows]

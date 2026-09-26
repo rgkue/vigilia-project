@@ -120,4 +120,34 @@ export interface AgentResponse {
   };
   integrations: IntegrationState[];
   source: "local_demo" | "backend";
+  /** Datos operativos que añade GET /ingresos/listado. */
+  hospital?: string | null;
+  reason?: string | null;
+  maskedId?: string | null;
+  reviewPending?: boolean;
+}
+
+export interface IngressListFilters {
+  q?: string;
+  verdict?: AdministrativeVerdict[];
+  level?: AlertLevel[];
+  from?: string;
+  to?: string;
+  pendingReview?: boolean;
+}
+
+export interface IngressPage {
+  items: AgentResponse[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface IngressSummary {
+  generatedAt: string;
+  today: { total: number; byVerdict: Record<AdministrativeVerdict, number>; byLevel: Record<AlertLevel, number> };
+  last24h: number;
+  pendingReview: number;
+  reviewWindowDays: number;
+  deliveriesToday: { sent: number; internal: number; failed: number; notConfigured: number };
 }

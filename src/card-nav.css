@@ -100,6 +100,12 @@
 
 .logo { height: 28px; filter: invert(1); }
 
+.card-nav-cta-icon { display: none; flex: none; }
+.nav-account-name { font-size: 14px; font-weight: 650; }
+.nav-account-email { overflow-wrap: anywhere; color: rgba(245,245,247,.66); font-size: 12px; }
+.nav-account-logout { width: fit-content; padding: 0; border: 0; background: transparent; font: inherit; }
+.nav-account-logout:disabled { opacity: .65; cursor: wait; }
+
 .card-nav-cta-button {
   display: inline-flex;
   align-items: center;
@@ -192,6 +198,8 @@
 @media (max-width: 768px) {
   .card-nav-container { width: 90%; top: 1.2em; }
 
+  .nav-account-card { min-height: 96px; }
+
   .card-nav-content {
     flex-direction: column;
     align-items: stretch;
@@ -210,4 +218,26 @@
 
   .nav-card-label { font-size: 18px; }
   .nav-card-link { font-size: 15px; }
+}
+
+@media (max-width: 380px) {
+  .card-nav-cta-button { width: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; }
+  .card-nav-cta-button:hover { background: transparent; }
+  .card-nav-cta-label { display: none; }
+  .card-nav-cta-icon { display: block; }
+}
+
+/* Barra superior: sección actual, entorno y cuenta. */
+.card-nav-start, .card-nav-end { display: flex; align-items: center; gap: 10px; height: 100%; min-width: 0; }
+.card-nav-section { overflow: hidden; color: rgba(245,245,247,.72); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.card-nav-env { display: inline-flex; flex: none; align-items: center; gap: 6px; padding: 3px 9px; border: 1px solid rgba(246,207,134,.3); border-radius: 999px; color: #efcf91; font-size: 12px; }
+.card-nav-env i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.nav-card-badge { margin-left: 4px; padding: 1px 7px; border: 1px solid rgba(246,207,134,.35); border-radius: 999px; color: #efcf91; font-size: 11px; }
+.nav-card-link[aria-current="page"] { font-weight: 600; }
+
+@media (max-width: 900px) {
+  .card-nav-section { display: none; }
+}
+@media (max-width: 560px) {
+  .card-nav-env { display: none; }
 }

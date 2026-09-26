@@ -60,7 +60,11 @@ export interface IntegrationCredential {
 
 export const getUsers = () => jsonRequest<UserProfile[]>("/admin/users");
 export const getPermissions = () => jsonRequest<PermissionCatalog>("/admin/permissions");
-export const getAudit = () => jsonRequest<AuditEntry[]>("/admin/audit?limit=100");
+export function getAudit({ limit = 50, offset = 0, action = "" }: { limit?: number; offset?: number; action?: string } = {}) {
+  const query = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (action) query.set("accion", action);
+  return jsonRequest<AuditEntry[]>(`/admin/audit?${query}`);
+}
 export const getIntegrations = () => jsonRequest<IntegrationConfig[]>("/admin/integrations");
 export const getIntegrationStatuses = () => jsonRequest<IntegrationStatus[]>("/admin/integrations/status");
 export const getOperationalIntegrationStatuses = () => jsonRequest<IntegrationStatus[]>("/integrations/status");
@@ -96,6 +100,30 @@ export const testIntegration = (id: string) => jsonRequest<{ status: string; las
 export const issueCredential = (id: string) => jsonRequest<{ id: string; token: string; shown_once: boolean }>(`/admin/integrations/${encodeURIComponent(id)}/credentials`, { method: "POST" });
 export const getCredentials = (id: string) => jsonRequest<IntegrationCredential[]>(`/admin/integrations/${encodeURIComponent(id)}/credentials`);
 export const revokeCredential = (integrationId: string, credentialId: string) => jsonRequest<{ ok: boolean }>(`/admin/integrations/${encodeURIComponent(integrationId)}/credentials/${encodeURIComponent(credentialId)}`, { method: "DELETE" });
+
+/** Cuenta local de Vigilia (ID + código TOTP; contraseña si tiene permisos administrativos). */
+export interface LocalAccount {
+  id: string;
+  employee_id: string;
+  display_name: string;
+  active: boolean;
+  roles: string[];
+  permissions: string[];
+  totp_configured: boolean;
+  requires_password: boolean;
+  password_set: boolean;
+  must_change_password: boolean;
+  badge: string;
+}
+
+const accountPath = (id: string, suffix = "") => `/admin/employees/${encodeURIComponent(id)}${suffix}`;
+export const getLocalAccounts = () => jsonRequest<LocalAccount[]>("/admin/employees", { cache: "no-store" });
+export const createLocalAccount = (body: { employee_id: string; display_name: string; roles: string[]; permissions: string[] }) =>
+  jsonRequest<LocalAccount>("/admin/employees", { method: "POST", body: JSON.stringify(body) });
+export const updateLocalAccount = (id: string, body: { display_name: string; active: boolean; roles?: string[]; permissions?: string[] }) =>
+  jsonRequest<LocalAccount>(accountPath(id), { method: "PUT", body: JSON.stringify(body) });
+export const issueLocalTotp = (id: string) => jsonRequest<{ uri: string; secret: string }>(accountPath(id, "/totp"), { method: "POST", body: "{}" });
+export const issueTemporaryPassword = (id: string) => jsonRequest<{ temporary_password: string }>(accountPath(id, "/password"), { method: "POST", body: "{}" });
 
 export function reviewClassification(eventId: string, index: number, relation: string, reason: string) {
   return jsonRequest(`/ingresos/${encodeURIComponent(eventId)}/clasificaciones/${index}/revision`, {

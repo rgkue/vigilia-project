@@ -15,3 +15,14 @@ os.environ.__setitem__("GROQ_API_KEY", "")
 os.environ.__setitem__("SLACK_ENABLED", "false")
 os.environ.__setitem__("SLACK_WEBHOOK_ADMISIONES", "")
 os.environ.__setitem__("SLACK_WEBHOOK_GESTOR", "")
+# Hash de contraseñas más barato solo para tests.
+os.environ.__setitem__("VIGILIA_SCRYPT_LOG_N", "12")
+
+# Pure adapter tests exercise legacy environment settings independently of a database.
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolate_legacy_adapter_selection(request, monkeypatch):
+    if request.module.__name__ in {"test_agent_kev", "test_agente"}:
+        monkeypatch.setattr("app.ai_providers.selection", lambda: "environment")

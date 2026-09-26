@@ -479,7 +479,7 @@ def review_classification(event_id: str, index: int, body: ReviewInput, request:
         classifications[index]["revisada"] = True
         classifications[index]["motivo_revision"] = body.reason.strip()
         classifications[index]["revisor_id"] = actor["id"]
-        classifications[index]["revisada_en"] = now
+        classifications[index]["revisada_en"] = now.isoformat()
         connection.execute(
             "UPDATE ingresos SET respuesta_json = ? WHERE evento_id = ?",
             (json.dumps(result, ensure_ascii=False), event_id),

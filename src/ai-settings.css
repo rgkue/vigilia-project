@@ -1,0 +1,43 @@
+.aiSettings { display: grid; gap: 24px; min-width: 0; }
+.aiWorkspace { display: grid; grid-template-columns: minmax(200px, .65fr) minmax(0, 1.6fr); gap: 24px; align-items: start; }
+.aiProviders { display: grid; gap: 12px; min-width: 0; }
+.aiProvider { display: grid; gap: 8px; text-align: left; padding: 20px; cursor: pointer; color: inherit; font: inherit; }
+.aiProvider span { font-size: 14px; line-height: 1.5; color: var(--muted, #aaa); }
+.aiProvider.selected { border-color: #9ce7ca; box-shadow: inset 3px 0 #9ce7ca; }
+.aiProvider:focus-visible, .aiSettings summary:focus-visible { outline: 2px solid #9ce7ca; outline-offset: 4px; }
+.aiFields { border: 0; padding: 0; margin: 0; display: grid; gap: 18px; min-width: 0; }
+.aiEditor { min-width: 0; }
+.aiEditor .adminHelp { font-size: 14.5px; line-height: 1.65; }
+.aiEditor .adminField > span { font-size: 14px; }
+.aiEditor .adminField input, .aiEditor .adminField select { font-size: 15px; min-height: 44px; }
+.aiSecretControl { position: relative; display: block; min-width: 0; }
+.aiSecretControl input { padding-right: 96px !important; }
+.aiSecretSaved { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); padding: 4px 8px; border: 1px solid rgba(156,231,202,.24); border-radius: 999px; background: rgba(156,231,202,.08); color: #9ce7ca; font-size: 12px; line-height: 1.2; pointer-events: none; }
+.aiSettings .primaryButton, .aiSettings .secondaryButton { min-height: 44px; font-size: 14px; }
+.aiCheck { display: flex; gap: 10px; align-items: center; font-size: 14.5px; }
+.aiAuthHelp { margin-top: 24px; border-top: 1px solid rgba(255,255,255,.12); padding-top: 18px; font-size: 14.5px; line-height: 1.7; }
+.aiAuthHelp summary { cursor: pointer; }
+.aiAuthHelp p { color: var(--muted, #aaa); }
+.aiSettings button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 760px) {
+  .aiWorkspace { grid-template-columns: minmax(0, 1fr); }
+  .aiProviders { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .aiProvider { padding: 16px; overflow-wrap: anywhere; }
+  .aiSettings .adminFormActions { display: grid; grid-template-columns: minmax(0, 1fr); }
+}
+
+.aiSubscription { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--border, #ffffff20); border-radius: 16px; min-width: 0; }
+.aiAuthorization { display: grid; gap: 12px; min-width: 0; }
+.aiAssignments { padding: clamp(20px, 3vw, 32px); }
+.aiAssignments h2 { margin: 0 0 12px; }
+.aiAssignmentRow { display: grid; gap: 14px; padding-block: 20px; border-top: 1px solid rgba(255, 255, 255, .1); }
+.aiAssignmentRow .adminFormActions { flex-wrap: wrap; }
+.aiTestResults { display: grid; gap: 12px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.12); }
+.aiTestResults h3, .aiTestResults > p { margin: 0; }
+.aiTestResults > p { color: var(--muted, #aaa); font-size: 14px; line-height: 1.6; }
+.aiTestCaseList { display: grid; gap: 10px; }
+.aiTestCase { display: grid; gap: 7px; padding: 16px; border: 1px solid var(--border, #ffffff20); border-radius: 14px; background: rgba(255,255,255,.025); }
+.aiTestCase header { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.aiTestCase p { margin: 0; font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.aiTestValid, .aiTestInvalid { color: #9ce7ca; font-size: 12px; }
+.aiTestInvalid { color: #f2c28e; }

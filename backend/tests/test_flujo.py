@@ -47,8 +47,10 @@ def event(index, insured, reason):
 
 class FlowCompatibilityTests(unittest.TestCase):
     def setUp(self):
+        from auth_helpers import authenticate_demo
         self.client = TestClient(app)
         self.client.__enter__()
+        authenticate_demo(self.client)
         main._hits.clear()
         with db.conexion() as connection:
             connection.execute("DELETE FROM notificaciones")

@@ -1,5 +1,5 @@
 import { makeLocalResult } from "../data/demoCases";
-import type { AdministrativeVerdict, AgentResponse, AlertLevel, ClassificationResult, DemoCase, IngressEvent, JevRelation, NotificationResult } from "../types";
+import type { AdministrativeVerdict, AgentResponse, AlertLevel, ClassificationResult, DemoCase, IngressEvent, IngressListFilters, IngressPage, IngressSummary, JevRelation, NotificationResult } from "../types";
 import { apiConfigured, apiFetch, parseApiError } from "./clientApi";
 
 export const isBackendConfigured = apiConfigured;
@@ -204,6 +204,12 @@ function normalizeResponse(value: unknown, eventId: string, createdFallback?: st
       };
     }) : [],
     source: "backend",
+    hospital: text(payload.hospital) ?? null,
+    reason: text(payload.motivo) ?? null,
+    maskedId: text(payload.cedula_mascara) ?? null,
+    reviewPending: typeof payload.revision_pendiente === "boolean"
+      ? payload.revision_pendiente
+      : preexistingItems.some((item) => item.revisada !== true),
   };
 }
 
@@ -296,4 +302,101 @@ export async function processDemoIngress(event: IngressEvent, demoCase: DemoCase
     throw new BackendConnectionError("El simulador local solo está disponible durante el desarrollo.");
   }
   return postIngress(event, "/webhook/ingreso");
+}
+
+const BACKEND_LEVEL: Record<AlertLevel, string> = { informativa: "BAJO", revision: "MEDIO", prioritaria: "ALTO" };
+
+async function readJson(path: string, fallbackMessage: string): Promise<unknown> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12_000);
+  try {
+    const response = await apiFetch(path, { signal: controller.signal, cache: "no-store" });
+    if (!response.ok) throw await parseApiError(response);
+    return await response.json();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("La consulta está tardando más de lo habitual. Inténtalo de nuevo.");
+    }
+    if (error instanceof TypeError) {
+      throw new BackendConnectionError("No se pudo conectar con el servicio. Inténtalo de nuevo más tarde.");
+    }
+    throw error instanceof Error ? error : new Error(fallbackMessage);
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+export function ingressQuery(filters: IngressListFilters, page = 1, limit = 25): URLSearchParams {
+  const query = new URLSearchParams({ limite: String(limit), pagina: String(page) });
+  if (filters.q?.trim()) query.set("q", filters.q.trim());
+  if (filters.verdict?.length) query.set("veredicto", filters.verdict.join(","));
+  if (filters.level?.length) query.set("nivel", filters.level.map((level) => BACKEND_LEVEL[level]).join(","));
+  if (filters.from) query.set("desde", filters.from);
+  if (filters.to) query.set("hasta", filters.to);
+  if (filters.pendingReview) query.set("revision_pendiente", "true");
+  return query;
+}
+
+/** Paged, filtered operational history (simulator scenarios excluded by the server). */
+export async function loadIngressList(filters: IngressListFilters = {}, page = 1, limit = 25): Promise<IngressPage> {
+  if (!isBackendConfigured) return { items: [], total: 0, page, limit };
+  const body = record(await readJson(`/ingresos/listado?${ingressQuery(filters, page, limit)}`, "No se pudo cargar la actividad."));
+  if (!Array.isArray(body.items)) throw new Error("El servicio devolvió una respuesta inesperada. Contacta al administrador.");
+  return {
+    items: body.items.map((item) => {
+      const payload = record(item);
+      return normalizeResponse(payload, text(payload.evento_id) ?? "EVENTO");
+    }),
+    total: typeof body.total === "number" ? body.total : body.items.length,
+    page: typeof body.pagina === "number" ? body.pagina : page,
+    limit: typeof body.limite === "number" ? body.limite : limit,
+  };
+}
+
+/** Finds one event (including simulator scenarios) to refresh an open detail. */
+export async function loadIngressEntry(eventId: string): Promise<AgentResponse | null> {
+  if (!isBackendConfigured) return null;
+  const query = new URLSearchParams({ q: eventId, limite: "10", incluir_pruebas: "true" });
+  const body = record(await readJson(`/ingresos/listado?${query}`, "No se pudo cargar el ingreso."));
+  const items = Array.isArray(body.items) ? body.items.map(record) : [];
+  const match = items.find((item) => item.evento_id === eventId);
+  return match ? normalizeResponse(match, eventId) : null;
+}
+
+function count(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+export async function loadIngressSummary(): Promise<IngressSummary> {
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const query = new URLSearchParams({ inicio_dia: dayStart.toISOString() });
+  const body = record(await readJson(`/ingresos/resumen?${query}`, "No se pudo cargar el resumen."));
+  const today = record(body.hoy);
+  const byVerdict = record(today.por_veredicto);
+  const byLevel = record(today.por_nivel);
+  const deliveries = record(body.avisos_hoy);
+  return {
+    generatedAt: text(body.generado_en) ?? new Date().toISOString(),
+    today: {
+      total: count(today.total),
+      byVerdict: {
+        VALIDA: count(byVerdict.VALIDA),
+        VALIDA_CON_ALERTAS: count(byVerdict.VALIDA_CON_ALERTAS),
+        NO_VALIDA: count(byVerdict.NO_VALIDA),
+        NO_ENCONTRADO: count(byVerdict.NO_ENCONTRADO),
+        PENDIENTE: count(byVerdict.PENDIENTE),
+      },
+      byLevel: { informativa: count(byLevel.BAJO), revision: count(byLevel.MEDIO), prioritaria: count(byLevel.ALTO) },
+    },
+    last24h: count(body.ultimas_24h),
+    pendingReview: count(body.revision_pendiente),
+    reviewWindowDays: count(body.ventana_revision_dias) || 30,
+    deliveriesToday: {
+      sent: count(deliveries.enviados),
+      internal: count(deliveries.internos),
+      failed: count(deliveries.fallidos),
+      notConfigured: count(deliveries.sin_configurar),
+    },
+  };
 }

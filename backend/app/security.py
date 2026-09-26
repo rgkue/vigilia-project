@@ -15,6 +15,7 @@ from . import db
 PERMISSION_CATALOG: dict[str, str] = {
     "users.manage": "Crear, editar y desactivar usuarios",
     "integrations.manage": "Configurar y probar integraciones",
+    "ai.configure": "Configurar proveedor y modelo de inteligencia artificial",
     "ingress.submit": "Registrar ingresos manualmente",
     "ingress.read": "Consultar ingresos y sus detalles",
     "classification.review": "Resolver sugerencias que requieren revisión",
@@ -23,9 +24,27 @@ PERMISSION_CATALOG: dict[str, str] = {
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     "administrador": set(PERMISSION_CATALOG),
     "operador": {"ingress.submit", "ingress.read"},
+    "recepcionista": {"ingress.submit", "ingress.read"},
     "revisor": {"ingress.read", "classification.review"},
     "auditor": {"audit.read"},
+    "configurador_ia": {"ai.configure"},
 }
+# Permisos de mostrador: con ID/gafete + TOTP basta. Cualquier otro exige además contraseña.
+BASIC_PERMISSIONS = frozenset({"ingress.read", "ingress.submit"})
+OIDC_VARIABLES = ("OIDC_DISCOVERY_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_ISSUER")
+PASSWORD_CHANGE_REQUIRED = "Cambia tu contraseña temporal para continuar."
+
+
+def requires_password(permissions: list[str] | set[str]) -> bool:
+    return bool(set(permissions) - BASIC_PERMISSIONS)
+
+
+def active_user_managers(connection: Any) -> int:
+    """Active profiles (corporate or local) that can still administer people."""
+    import json
+
+    rows = connection.execute("SELECT permissions_json FROM user_profiles WHERE active = TRUE").fetchall()
+    return sum("users.manage" in json.loads(row["permissions_json"] or "[]") for row in rows)
 
 
 def oidc_issuer() -> str:
@@ -33,21 +52,26 @@ def oidc_issuer() -> str:
 
 
 def oidc_enabled() -> bool:
-    return all(
-        (os.getenv(name) or "").strip()
-        for name in ("OIDC_DISCOVERY_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_ISSUER")
-    )
+    return all((os.getenv(name) or "").strip() for name in OIDC_VARIABLES)
+
+
+def oidc_partially_configured() -> bool:
+    configured = [bool((os.getenv(name) or "").strip()) for name in OIDC_VARIABLES]
+    return any(configured) and not all(configured)
 
 
 def validate_production_security() -> None:
     session_secret = (os.getenv("VIGILIA_SESSION_SECRET") or "").strip()
     if len(session_secret) < 32:
         raise RuntimeError("Producción requiere VIGILIA_SESSION_SECRET con al menos 32 caracteres aleatorios.")
-    if not oidc_enabled():
-        raise RuntimeError("Producción requiere OIDC_DISCOVERY_URL, OIDC_ISSUER y credenciales OIDC.")
+    # OIDC es opcional: sin él, las personas usan cuentas locales. A medias, sería un fallo silencioso.
+    if oidc_partially_configured():
+        raise RuntimeError("La configuración OIDC está incompleta: define " + ", ".join(OIDC_VARIABLES) + " o ninguna de ellas.")
     bootstrap_email = (os.getenv("VIGILIA_BOOTSTRAP_ADMIN_EMAIL") or "").strip()
-    if "@" not in bootstrap_email or bootstrap_email.startswith("@") or bootstrap_email.endswith("@"):
-        raise RuntimeError("Producción requiere VIGILIA_BOOTSTRAP_ADMIN_EMAIL para aprovisionar la cuenta administradora inicial.")
+    if bootstrap_email and ("@" not in bootstrap_email or bootstrap_email.startswith("@") or bootstrap_email.endswith("@")):
+        raise RuntimeError("VIGILIA_BOOTSTRAP_ADMIN_EMAIL debe ser un correo válido.")
+    if bootstrap_email and not oidc_enabled():
+        raise RuntimeError("VIGILIA_BOOTSTRAP_ADMIN_EMAIL solo se usa con OIDC. Sin OIDC, crea el primer administrador con python -m app.bootstrap_admin.")
     same_site = (os.getenv("VIGILIA_SESSION_SAME_SITE") or "lax").strip().casefold()
     if same_site not in {"lax", "none"}:
         raise RuntimeError("VIGILIA_SESSION_SAME_SITE debe ser 'lax' o 'none'.")
@@ -100,10 +124,12 @@ def _row_profile(row: Any) -> dict[str, Any]:
     }
 
 
-def current_profile(request: Request) -> dict[str, Any]:
+def current_profile(request: Request, allow_pending_password: bool = False) -> dict[str, Any]:
+    """Resolve the signed-in profile. A pending temporary password blocks everything except
+    reading the session, changing the password and signing out (``allow_pending_password``)."""
     from .db import database_mode
 
-    if database_mode() == "demo":
+    if database_mode() == "demo" and request.session.get("user_id") == "demo-admin" and request.session.get("auth_method") == "demo":
         return {
             "id": "demo-admin",
             "issuer": "demo",
@@ -113,6 +139,7 @@ def current_profile(request: Request) -> dict[str, Any]:
             "active": True,
             "roles": ["administrador"],
             "permissions": sorted(PERMISSION_CATALOG),
+            "auth_method": "demo",
         }
     user_id = request.session.get("user_id")
     if not user_id:
@@ -123,6 +150,26 @@ def current_profile(request: Request) -> dict[str, Any]:
     if not profile["active"]:
         request.session.clear()
         raise HTTPException(status_code=401, detail="El acceso de esta cuenta está desactivado.")
+    profile["auth_method"] = request.session.get("auth_method", "oidc")
+    if profile["issuer"] == "employee":
+        with db.conexion() as connection:
+            employee = connection.execute(
+                "SELECT employee_id,credential_version,must_change_password FROM employees WHERE user_id=?", (user_id,)
+            ).fetchone()
+        if (not employee or profile["auth_method"] not in {"totp", "password"}
+                or request.session.get("credential_version") != employee["credential_version"]):
+            request.session.clear()
+            raise HTTPException(401, "La credencial de la cuenta cambió. Inicia sesión nuevamente.")
+        if requires_password(profile["permissions"]) and profile["auth_method"] != "password":
+            request.session.clear()
+            raise HTTPException(401, "Tu cuenta ahora requiere contraseña. Inicia sesión nuevamente.")
+        profile["employee_id"] = employee["employee_id"]
+        profile["must_change_password"] = profile["auth_method"] == "password" and bool(employee["must_change_password"])
+        if profile["must_change_password"] and not allow_pending_password:
+            raise HTTPException(403, PASSWORD_CHANGE_REQUIRED)
+    elif profile["issuer"] == "demo":
+        request.session.clear()
+        raise HTTPException(401, "Inicia sesión para continuar.")
     return profile
 
 
@@ -136,8 +183,6 @@ def require_permission(request: Request, permission: str) -> dict[str, Any]:
 def require_csrf(request: Request, supplied: str | None) -> None:
     from .db import database_mode
 
-    if database_mode() == "demo":
-        return
     expected = request.session.get("csrf_token")
     if not expected or not supplied or not hmac.compare_digest(str(expected), supplied):
         raise HTTPException(status_code=403, detail="La sesión de seguridad caducó. Recarga la página.")
@@ -172,8 +217,8 @@ def resolve_oidc_profile(claims: dict[str, Any]) -> dict[str, Any]:
         if row is None:
             bootstrap_email = (os.getenv("VIGILIA_BOOTSTRAP_ADMIN_EMAIL") or "").strip().casefold()
             existing_admin = connection.execute(
-                "SELECT 1 FROM user_profiles WHERE active = TRUE AND roles_json LIKE ? LIMIT 1",
-                ('%"administrador"%',),
+                "SELECT 1 FROM user_profiles WHERE active = TRUE AND issuer = ? AND roles_json LIKE ? LIMIT 1",
+                (issuer, '%"administrador"%'),
             ).fetchone()
             if email != bootstrap_email or existing_admin:
                 raise HTTPException(status_code=403, detail="Tu cuenta aún no tiene acceso a Vigilia.")

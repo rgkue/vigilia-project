@@ -175,6 +175,7 @@ def _kev_timeout() -> float:
 def _normalize_kev(
     payload: object,
     conditions: list[str],
+    provider_name: str = "Kev",
 ) -> list[PreexistenciaRelacionada]:
     answers = payload.get("answers") if isinstance(payload, dict) else None
     if not isinstance(answers, dict):
@@ -207,7 +208,7 @@ def _normalize_kev(
                 condicion=condition,
                 relacion=relation,
                 justificacion=(
-                    f"Kev sugiere {relation.lower()} (probabilidad del modelo {probability:.0%}; "
+                    f"{provider_name} sugiere {relation.lower()} (probabilidad del modelo {probability:.0%}; "
                     "no equivale a una tasa de acierto). Revisión humana pendiente; "
                     "la clasificación no determina cobertura ni atención."
                 ),
@@ -409,16 +410,16 @@ def _groq_timeout() -> float:
         return TIMEOUT_DEFAULT
 
 
-def _normalize_groq(payload: object, conditions: list[str]) -> list[PreexistenciaRelacionada]:
+def _normalize_groq(payload: object, conditions: list[str], provider_name: str = "Groq") -> list[PreexistenciaRelacionada]:
     try:
         content = payload["choices"][0]["message"]["content"]  # type: ignore[index]
         data = json.loads(content) if isinstance(content, str) else content
     except (KeyError, IndexError, TypeError, ValueError):
-        return [_pending(condition, "La respuesta de Groq no tenía el formato esperado.") for condition in conditions]
+        return [_pending(condition, f"La respuesta de {provider_name} no tenía el formato esperado.") for condition in conditions]
 
     items = data.get("preexistencias") if isinstance(data, dict) else None
     if not isinstance(items, list):
-        return [_pending(condition, "La respuesta de Groq no tenía el formato esperado.") for condition in conditions]
+        return [_pending(condition, f"La respuesta de {provider_name} no tenía el formato esperado.") for condition in conditions]
 
     by_condition: dict[str, dict] = {}
     duplicates: set[str] = set()
@@ -437,13 +438,13 @@ def _normalize_groq(payload: object, conditions: list[str]) -> list[Preexistenci
         key = _norm(condition)
         item = by_condition.get(key)
         if item is None or key in duplicates:
-            results.append(_pending(condition, "Groq omitió o duplicó la clasificación de este antecedente."))
+            results.append(_pending(condition, f"{provider_name} omitió o duplicó la clasificación de este antecedente."))
             continue
 
         relation = str(item.get("relacion", "")).strip().upper()
         explanation = _clean_text(item.get("justificacion"), 220)
         if relation not in RELACIONES or not explanation:
-            results.append(_pending(condition, "Groq devolvió una clasificación incompleta o inválida."))
+            results.append(_pending(condition, f"{provider_name} devolvió una clasificación incompleta o inválida."))
             continue
 
         results.append(
@@ -451,7 +452,7 @@ def _normalize_groq(payload: object, conditions: list[str]) -> list[Preexistenci
                 condicion=condition,
                 relacion=relation,
                 justificacion=(
-                    f"Groq sugiere {relation.lower()}: {explanation}. Revisión humana pendiente; "
+                    f"{provider_name} sugiere {relation.lower()}: {explanation}. Revisión humana pendiente; "
                     "la clasificación no determina cobertura ni atención."
                 ),
             )
@@ -501,6 +502,7 @@ async def _consultar_groq(
 async def relacionar_preexistencias(
     ev: EventoIngreso,
     preexistencias: list[dict],
+    *, ai_user_id: str | None = None, personal: bool = False,
 ) -> list[PreexistenciaRelacionada]:
     """Usa el proveedor configurado; errores y dudas quedan pendientes."""
     if not preexistencias:
@@ -514,7 +516,11 @@ async def relacionar_preexistencias(
     from .db import database_mode
 
     if database_mode() == "production" and os.getenv("VIGILIA_AI_APPROVED", "false").strip().casefold() != "true":
-        provider = "none"
+        return _failed_classification(conditions, ev.motivo_ingreso, "La clasificación automática requiere aprobación en producción.")
+
+    from .ai_providers import configured_classification
+    if personal or database_mode() == "production":
+        return await configured_classification(ev.motivo_ingreso, conditions, ai_user_id, ev.evento_id)
 
     if provider == "kev":
         config = _kev_endpoint()
@@ -548,6 +554,17 @@ async def relacionar_preexistencias(
     return _failed_classification(conditions, ev.motivo_ingreso, "El proveedor de clasificación no es válido.")
 
 
+# Mismas etiquetas que muestra la interfaz (src/lib/labels.ts).
+NIVEL_ETIQUETA = {"BAJO": "Aviso administrativo", "MEDIO": "Revisión administrativa", "ALTO": "Prioridad administrativa"}
+VEREDICTO_ETIQUETA = {
+    "VALIDA": "Válida",
+    "VALIDA_CON_ALERTAS": "Válida con alertas",
+    "NO_VALIDA": "No vigente",
+    "NO_ENCONTRADO": "No encontrado",
+    "PENDIENTE": "Pendiente",
+}
+
+
 def _slack_text(value: str, limit: int = 300) -> str:
     """Reduce control characters y evita menciones y enlaces Slack no deseados."""
     cleaned = re.sub(r"[\r\n\t]+", " ", str(value or ""))
@@ -569,15 +586,17 @@ async def redactar_mensajes(
     )
     pendientes = sum("pendiente" in item.justificacion.casefold() for item in rel)
     relacionadas = sum(item.relacion in {"DIRECTA", "POSIBLE"} for item in rel)
+    nivel_texto = NIVEL_ETIQUETA.get(nivel, "Revisión administrativa")
+    veredicto_texto = VEREDICTO_ETIQUETA.get(veredicto, "Pendiente")
 
     admisiones = (
-        f"[{nivel}] Ingreso {_slack_text(ev.evento_id, 40)}. {estado_poliza}; "
-        f"veredicto administrativo: {veredicto}. Consulte el detalle en Vigilia. "
+        f"{nivel_texto} · Ingreso {_slack_text(ev.evento_id, 40)}. {estado_poliza.capitalize()}; "
+        f"resultado administrativo: {veredicto_texto}. Consulte el detalle en Vigilia. "
         "Continúe la atención de emergencia con normalidad; esta alerta no decide cobertura."
     )
     gestor = (
-        f"[{nivel}] Revisar el ingreso {_slack_text(ev.evento_id, 40)} en Vigilia. "
-        f"Veredicto: {veredicto}; sugerencias orientativas: {relacionadas}; "
+        f"{nivel_texto} · Revisar el ingreso {_slack_text(ev.evento_id, 40)} en Vigilia. "
+        f"Resultado: {veredicto_texto}; sugerencias orientativas: {relacionadas}; "
         f"clasificaciones pendientes: {pendientes}. Confirmar la información con el expediente. "
         "La decisión final corresponde al equipo responsable."
     )

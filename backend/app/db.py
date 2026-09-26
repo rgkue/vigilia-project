@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -106,6 +107,16 @@ CREATE TABLE IF NOT EXISTS review_actions (
   reviewer_id TEXT NOT NULL, created_at TEXT NOT NULL,
   UNIQUE(event_id, classification_index));
 CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS ai_provider_configs (
+  provider TEXT PRIMARY KEY, model TEXT NOT NULL, auth_mode TEXT NOT NULL,
+  encrypted_secret TEXT, revision TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'untested', updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS ai_selection (
+  id INTEGER PRIMARY KEY CHECK (id = 1), provider TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS ai_oauth_connections (
+  provider TEXT PRIMARY KEY, flow_id TEXT NOT NULL, actor_id TEXT NOT NULL,
+  status TEXT NOT NULL, expires_at DOUBLE PRECISION NOT NULL,
+  method_index INTEGER NOT NULL DEFAULT 0, encrypted_authorization TEXT);
 """
 
 
@@ -115,6 +126,28 @@ def _postgres_url() -> str:
 
 def _is_postgres() -> bool:
     return _postgres_url().startswith(("postgresql://", "postgres://"))
+
+
+def timestamp_param(value: datetime) -> Any:
+    """Valor comparable con ``creado_en``: TIMESTAMPTZ en PostgreSQL, texto UTC de CURRENT_TIMESTAMP en SQLite."""
+    moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if _is_postgres():
+        return moment
+    return moment.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def timestamp_iso(value: Any) -> str | None:
+    """Normaliza ``creado_en`` a ISO 8601 con zona; SQLite lo guarda en UTC sin sufijo."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return moment.isoformat()
+    try:
+        moment = datetime.fromisoformat(str(value))
+    except ValueError:
+        return str(value)
+    return (moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)).isoformat()
 
 
 def database_mode() -> str:
@@ -189,6 +222,18 @@ def _ensure_sqlite_columns(connection: ConnectionAdapter) -> None:
     )
 
 
+def _ensure_local_account_columns(connection: ConnectionAdapter) -> None:
+    """SQLite equivalent of migrations/006_local_accounts.sql (ALTER ... IF NOT EXISTS is PostgreSQL-only)."""
+    existing = {row["name"] for row in connection.execute("PRAGMA table_info(employees)").fetchall()}
+    for name, definition in (
+        ("password_hash", "TEXT"),
+        ("must_change_password", "BOOLEAN NOT NULL DEFAULT FALSE"),
+        ("password_changed_at", "TEXT"),
+    ):
+        if name not in existing:
+            connection.execute(f"ALTER TABLE employees ADD COLUMN {name} {definition}")
+
+
 def init_db() -> None:
     mode = database_mode()
     if mode not in {"demo", "production"}:
@@ -202,12 +247,19 @@ def init_db() -> None:
         else:
             connection.executescript(SQLITE_SCHEMA)
             _ensure_sqlite_columns(connection)
+            migration = Path(__file__).resolve().parent.parent / "migrations" / "004_personal_ai.sql"
+            connection.executescript(migration.read_text(encoding="utf-8"))
+            auth_migration = Path(__file__).resolve().parent.parent / "migrations" / "005_employee_auth.sql"
+            connection.executescript(auth_migration.read_text(encoding="utf-8"))
+            _ensure_local_account_columns(connection)
         if mode == "demo" and os.getenv("VIGILIA_SEED_DEMO", "true").strip().casefold() == "true":
             if connection.execute("SELECT COUNT(*) FROM asegurados").fetchone()[0] == 0:
                 from .seed import cargar_seed
 
                 cargar_seed(connection)
         if mode == "demo":
+            from .employees import seed_demo
+            seed_demo(connection)
             connection.execute(
                 "INSERT INTO user_profiles (id, issuer, subject, email, display_name, active, roles_json, permissions_json, created_at, updated_at) "
                 "VALUES ('demo-admin', 'demo', 'demo-admin', 'demo@vigilia.local', 'Administrador de demostración', TRUE, '[\"administrador\"]', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
