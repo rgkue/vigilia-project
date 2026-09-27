@@ -327,7 +327,7 @@ footer p { margin: 4px 0; }
 
 <footer>
   <p><strong>Vigilia</strong> · Sistema de alerta temprana de ingresos a emergencias · hackIAthon 2026, reto 4.</p>
-  <p>El contenido se lee en cada visita desde <a href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener">github.com/rgkue/vigilia-project</a> (rama <code>main</code>), así que siempre coincide con el repositorio.</p>
+  <p>El contenido se lee desde <a href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener">github.com/rgkue/vigilia-project</a> (rama <code>main</code>). Si una guía aún no está disponible allí, el visor muestra la copia incluida y lo indica.</p>
 </footer>
 
 <dialog class="searchDialog" id="search-dialog" aria-label="Buscar en la documentación">
@@ -394,6 +394,7 @@ footer p { margin: 4px 0; }
   let shownPath = "";
 
   const safePath = (value) => typeof value === "string" && /^[\w.\/-]+\.md$/i.test(value) && !value.split("/").includes("..") && !value.startsWith("/");
+  const BUNDLED_DOCS = new Set(["docs/guia-jurado.md"]);
   const currentPath = () => {
     const requested = new URLSearchParams(location.search).get("doc");
     return safePath(requested) ? requested : "README.md";
@@ -428,16 +429,37 @@ footer p { margin: 4px 0; }
     return parts.join("/");
   }
 
+  async function bundledFallback(path) {
+    if (!BUNDLED_DOCS.has(path)) return null;
+    try {
+      const response = await fetch(`./${encodeURI(path)}`, { cache: "no-store" });
+      if (!response.ok) return null;
+      return { text: await response.text(), cached: true, bundled: true };
+    } catch {
+      return null;
+    }
+  }
+
   async function download(path) {
     try {
       const response = await fetch(RAW + encodeURI(path), { cache: "no-store" });
       if (response.ok) return { text: await response.text(), cached: false };
-      if (response.status === 404) throw new Error("missing");
+      if (response.status === 404) {
+        const bundled = await bundledFallback(path);
+        if (bundled) return bundled;
+        throw new Error("missing");
+      }
     } catch (error) {
       if (error.message === "missing") throw error;
     }
     const response = await fetch(CDN + encodeURI(path));
-    if (!response.ok) throw new Error(response.status === 404 ? "missing" : "network");
+    if (!response.ok) {
+      if (response.status === 404) {
+        const bundled = await bundledFallback(path);
+        if (bundled) return bundled;
+      }
+      throw new Error(response.status === 404 ? "missing" : "network");
+    }
     return { text: await response.text(), cached: true };
   }
 
@@ -718,11 +740,20 @@ footer p { margin: 4px 0; }
     shownPath = path;
     renderNav(path);
     source.href = `${GITHUB}/blob/${BRANCH}/${encodeURI(path)}`;
+    source.textContent = "Ver en GitHub";
+    source.target = "_blank";
+    source.rel = "noopener";
     body.setAttribute("aria-busy", "true");
     body.innerHTML = '<div class="loading" role="status" aria-label="Cargando la documentación"><span></span><span></span><span></span><span></span></div>';
     try {
-      const { text: markdown, cached } = await fetchDoc(path);
+      const { text: markdown, cached, bundled = false } = await fetchDoc(path);
       if (token !== loadToken) return;
+      if (bundled) {
+        source.href = `./${encodeURI(path)}`;
+        source.textContent = "Ver copia incluida";
+        source.removeAttribute("target");
+        source.removeAttribute("rel");
+      }
       if (window.marked?.parse) {
         const content = parse(markdown);
         rewriteLinks(content, path);
@@ -737,10 +768,14 @@ footer p { margin: 4px 0; }
       const title = TITLES.get(path) || heading?.textContent.replace(/^#/, "").trim() || path;
       document.title = `${title} · Vigilia`;
       live.classList.toggle("cached", cached);
-      liveLabel.textContent = cached ? "Copia en caché (jsDelivr)" : "Leído en vivo de GitHub";
+      liveLabel.textContent = bundled
+        ? "Copia incluida con el visor"
+        : cached ? "Copia en caché (jsDelivr)"
+        : "Leído en vivo de GitHub";
       meta.hidden = false;
       renderPager(path);
-      showUpdated(path, token);
+      if (bundled) updated.replaceChildren();
+      else showUpdated(path, token);
       if (restore) restoreScroll(); else scrollToHash();
       if (announceTitle) announce(`Documento abierto: ${title}`);
     } catch (error) {
