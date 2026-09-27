@@ -18,3 +18,5 @@ backend/.local-dev/
 
 # Credenciales del jurado y variables de Vercel generadas localmente
 entrega-privada/
+# Carpeta que se entrega al jurado: incluye las credenciales del modo Producción
+entregable-jurado/

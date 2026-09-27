@@ -650,3 +650,76 @@
 .passwordForm .adminField { margin-top: 0; }
 .passwordHint { margin: 0; color: var(--client-faint); font-size: 13px; line-height: 1.55; }
 .badgeSheet .passwordForm .primaryButton { justify-self: start; }
+
+/* ─── Menús, sugerencias y calendario propios ───────────────────────────────
+   Sustituyen a los del sistema (Windows, Android, Linux) con el mismo vidrio de la app.
+   macOS e iOS conservan sus selectores nativos (ver USES_NATIVE_PICKERS en Pickers.tsx). */
+.appSelectTrigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-width: 0; outline: 0; color: var(--client-text); cursor: pointer; font: inherit; text-align: left; }
+.appSelectTrigger:disabled { cursor: not-allowed; opacity: .55; }
+.appSelectValue { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.appSelectTrigger.placeholder .appSelectValue { color: rgba(235,235,245,.42); }
+.appPickerChevron { flex: none; color: var(--client-muted); transition: transform .22s cubic-bezier(.2,.8,.25,1), color .18s ease; }
+.appSelectTrigger:hover:not(:disabled) .appPickerChevron { color: var(--client-text); }
+.appSelectTrigger.open .appPickerChevron { color: var(--client-mint); transform: rotate(180deg); }
+.appDateTrigger.open .appPickerChevron { transform: none; }
+.adminField .appSelectTrigger, .reviewField .appSelectTrigger { min-height: 35px; padding: 8px 9px; border: 1px solid var(--client-line); border-radius: 9px; background: rgba(0,0,0,.18); font-size: 13.5px; }
+.liveField .appSelectTrigger { min-height: 42px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.13); border-radius: 12px; background: rgba(0,0,0,.2); font-size: 14px; transition: border-color .2s ease, background .2s ease, box-shadow .2s ease, transform .2s ease; }
+.toolbarSelect .appSelectTrigger { width: auto; min-height: 40px; padding: 0 10px 0 12px; border: 1px solid var(--client-line); border-radius: 12px; background: rgba(0,0,0,.2); font-size: 13.5px; }
+.aiEditor .adminField .appSelectTrigger { min-height: 44px; font-size: 15px; }
+:is(.adminField, .reviewField, .toolbarSelect) .appSelectTrigger:is(:focus-visible, .open) { border-color: rgba(156,231,202,.5); }
+.liveField .appSelectTrigger:is(:focus-visible, .open) { border-color: rgba(156,231,202,.55); background: rgba(0,0,0,.28); box-shadow: 0 0 0 3px rgba(156,231,202,.09); transform: translateY(-1px); }
+.liveField .appSelectTrigger[aria-invalid="true"] { border-color: rgba(255,156,164,.55); }
+@media (max-width: 560px) { .liveField .appSelectTrigger { font-size: 16px; } }
+@media (max-width: 560px) { .toolbarSelect .appSelectTrigger { width: 100%; } }
+
+.appPickerLayer {
+  --client-text: #f5f5f7; --client-muted: rgba(235,235,245,.68); --client-faint: rgba(235,235,245,.45); --client-line: rgba(255,255,255,.105); --client-mint: #9ce7ca;
+  position: fixed; z-index: 400; box-sizing: border-box; overflow: auto; overscroll-behavior: contain;
+  padding: 6px; border: 1px solid rgba(255,255,255,.14); border-radius: 15px;
+  background: rgba(32,32,35,.86); color: var(--client-text);
+  box-shadow: inset 0 1px rgba(255,255,255,.09), 0 24px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(0,0,0,.25);
+  -webkit-backdrop-filter: blur(26px) saturate(155%); backdrop-filter: blur(26px) saturate(155%);
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent;
+  animation: appPickerDown .18s cubic-bezier(.2,.8,.25,1) both; transform-origin: top center;
+}
+.appPickerLayer.above { animation-name: appPickerUp; transform-origin: bottom center; }
+@keyframes appPickerDown { from { opacity: 0; transform: translateY(-5px) scale(.98); } }
+@keyframes appPickerUp { from { opacity: 0; transform: translateY(5px) scale(.98); } }
+.appSelectMenu ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; outline: 0; }
+.appSelectMenu li { display: flex; min-height: 36px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 9px; color: rgba(235,235,245,.84); cursor: pointer; font-size: 14px; line-height: 1.3; transition: background .12s ease, color .12s ease; }
+.appSelectMenu li > span { min-width: 0; overflow-wrap: anywhere; }
+.appSelectMenu li.active { background: rgba(255,255,255,.085); color: var(--client-text); }
+.appSelectMenu li.selected { color: var(--client-mint); }
+.appSelectMenu li.selected.active { background: rgba(156,231,202,.1); }
+.appSelectMenu li[aria-disabled] { cursor: default; opacity: .4; }
+.appOptionCheck { flex: none; }
+.appSuggestHint { margin: 4px 10px 6px; color: var(--client-faint); font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+
+.appDatePicker { display: grid; gap: 10px; padding: 12px; }
+.appDateHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.appDateHeader strong { font-size: 14.5px; font-weight: 600; text-transform: capitalize; }
+.appDateNav { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; background: rgba(255,255,255,.04); color: var(--client-text); cursor: pointer; font: inherit; font-size: 19px; line-height: 1; }
+.appDateNav:hover:not(:disabled) { border-color: rgba(255,255,255,.2); background: rgba(255,255,255,.09); }
+.appDateNav:disabled { cursor: not-allowed; opacity: .3; }
+.appDateGrid { display: grid; gap: 2px; }
+.appDateRow { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.appDateRow > span[role="gridcell"] { display: grid; }
+.appDateWeekday { padding: 3px 0 5px; color: var(--client-faint); font-family: var(--mono); font-size: 11px; text-align: center; }
+.appDateDay { height: 36px; border: 1px solid transparent; border-radius: 10px; outline: 0; background: transparent; color: rgba(235,235,245,.86); cursor: pointer; font: inherit; font-size: 13.5px; font-variant-numeric: tabular-nums; transition: background .12s ease, color .12s ease; }
+.appDateDay:hover:not(:disabled) { background: rgba(255,255,255,.085); color: var(--client-text); }
+.appDateDay.outside { color: rgba(235,235,245,.3); }
+.appDateDay.today { border-color: rgba(156,231,202,.35); }
+.appDateDay.selected { background: var(--client-mint); color: #08120f; font-weight: 650; box-shadow: 0 0 18px rgba(156,231,202,.28); }
+.appDateDay:focus-visible { border-color: var(--client-mint); box-shadow: 0 0 0 2px rgba(156,231,202,.25); }
+.appDateDay:disabled { cursor: not-allowed; opacity: .22; }
+.appDateTime { display: flex; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); color: var(--client-muted); font-size: 13px; }
+.appDateTime > span { margin-right: auto; }
+.appDateTime > b { color: var(--client-muted); font-weight: 500; }
+.appTimeUnit { display: inline-grid; justify-items: center; }
+.appTimeUnit button { padding: 2px 14px; border: 0; background: transparent; color: var(--client-muted); cursor: pointer; font-size: 13px; line-height: 1.1; }
+.appTimeUnit button:hover { color: var(--client-mint); }
+.appTimeUnit input { width: 50px; height: 36px; border: 1px solid rgba(255,255,255,.13); border-radius: 10px; outline: 0; background: rgba(0,0,0,.25); color: var(--client-text); font: inherit; font-size: 16px; font-variant-numeric: tabular-nums; text-align: center; }
+.appTimeUnit input:focus { border-color: rgba(156,231,202,.55); box-shadow: 0 0 0 3px rgba(156,231,202,.09); }
+.appDateActions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+@media (prefers-reduced-transparency: reduce) { .appPickerLayer { background: #1c1c1e; -webkit-backdrop-filter: none; backdrop-filter: none; } }
+@media (forced-colors: active) { .appPickerLayer { border: 1px solid CanvasText; background: Canvas; } .appSelectMenu li.active, .appDateDay.selected { outline: 2px solid Highlight; } }

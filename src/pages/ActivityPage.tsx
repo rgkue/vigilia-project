@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityRows } from "../components/ActivityRows";
 import { Icon } from "../components/Icon";
+import { Select } from "../components/Pickers";
 import { PanelHeading } from "../components/ResultPanel";
 import { BackendConnectionError, loadIngressList } from "../lib/agentApi";
 import { formatCount, relativeTime } from "../lib/labels";
@@ -26,6 +27,7 @@ const LEVEL_OPTIONS: { value: AlertLevel | ""; label: string }[] = [
   { value: "revision", label: "Revisión administrativa" },
   { value: "informativa", label: "Aviso administrativo" },
 ];
+const REVIEW_OPTIONS = [{ value: "", label: "Revisión" }, { value: "pendiente", label: "Revisión pendiente" }];
 const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: "", label: "Fecha" },
   { value: "hoy", label: "Hoy" },
@@ -188,11 +190,11 @@ export function ActivityPage({ canRead, refreshKey, activeEventId, highlightedEv
         </div>
 
         {canRead && <div className="activityToolbar" role="search">
-          <label className="toolbarSearch"><Icon name="search" size={15} /><span className="srOnly">Buscar</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por centro, motivo, referencia o identificación" maxLength={80} /></label>
-          <label className="toolbarSelect"><span className="srOnly">Resultado</span><select value={filters.verdict} onChange={(event) => patch({ verdict: event.target.value as FilterState["verdict"] })}>{VERDICT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <label className="toolbarSelect"><span className="srOnly">Nivel</span><select value={filters.level} onChange={(event) => patch({ level: event.target.value as FilterState["level"] })}>{LEVEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <label className="toolbarSelect"><span className="srOnly">Revisión</span><select value={filters.review} onChange={(event) => patch({ review: event.target.value as FilterState["review"] })}><option value="">Revisión</option><option value="pendiente">Revisión pendiente</option></select></label>
-          <label className="toolbarSelect"><span className="srOnly">Periodo</span><select value={filters.period} onChange={(event) => patch({ period: event.target.value as Period })}>{PERIOD_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label className="toolbarSearch"><Icon name="search" size={15} /><span className="srOnly">Buscar</span><input autoComplete="off" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por centro, motivo, referencia o identificación" maxLength={80} /></label>
+          <label className="toolbarSelect"><span className="srOnly">Resultado</span><Select value={filters.verdict} onChange={(verdict) => patch({ verdict: verdict as FilterState["verdict"] })} options={VERDICT_OPTIONS} /></label>
+          <label className="toolbarSelect"><span className="srOnly">Nivel</span><Select value={filters.level} onChange={(level) => patch({ level: level as FilterState["level"] })} options={LEVEL_OPTIONS} /></label>
+          <label className="toolbarSelect"><span className="srOnly">Revisión</span><Select value={filters.review} onChange={(review) => patch({ review: review as FilterState["review"] })} options={REVIEW_OPTIONS} /></label>
+          <label className="toolbarSelect"><span className="srOnly">Periodo</span><Select value={filters.period} onChange={(period) => patch({ period: period as Period })} options={PERIOD_OPTIONS} /></label>
           {filtered && <button className="textAction toolbarClear" type="button" onClick={clearFilters}>Limpiar filtros</button>}
         </div>}
 

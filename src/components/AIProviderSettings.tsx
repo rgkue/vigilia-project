@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "../ai-settings.css";
 import { AIAssignments } from "./AIAssignments";
+import { Select } from "./Pickers";
 import { AISubscriptionConnection } from "./AISubscriptionConnection";
 import { getAISettings, getAIModels, saveAIProvider, testAIProvider, selectAIProvider, type AIProviderTestCase, type AISettings } from "../lib/aiProviderApi";
 
@@ -113,7 +114,7 @@ export function AIProviderSettings() {
           <div className="adminSectionHead"><div><span className="eyebrow">PROVEEDOR Y MODELO</span><h2>{definition?.name}</h2></div></div>
           <p className="adminHelp">{NOTES[provider]}</p>
           <fieldset className="aiFields" disabled={busy}>
-            <label className="adminField"><span>Método de conexión</span><select value={mode} onChange={(event) => { setMode(event.target.value); setSecret(""); setModels([]); }}>{definition?.auth_modes.map((value) => <option key={value} value={value}>{MODE[value]}</option>)}</select></label>
+            <label className="adminField"><span>Método de conexión</span><Select value={mode} onChange={(next) => { setMode(next); setSecret(""); setModels([]); }} options={(definition?.auth_modes ?? []).map((value) => ({ value, label: MODE[value] ?? value }))} /></label>
             {mode !== "local" && mode !== "oauth" && <>
               <label className="adminField aiSecretField"><span>Clave de API · {definition?.name}</span><span className="aiSecretControl"><input type="password" autoComplete="new-password" maxLength={4096} value={config?.has_secret ? "••••••••••••••••••••" : secret} disabled={Boolean(config?.has_secret)} onChange={(event) => setSecret(event.target.value)} placeholder="Introduce la clave de tu proveedor" aria-describedby="ai-secret-help" />{config?.has_secret && <span className="aiSecretSaved" role="status">Guardada</span>}</span></label>
               {provider === "ollama" && mode === "cloud" && <p className="adminHelp">Pega el valor secreto completo entregado al crear la API key en Ollama. El identificador visible debajo del nombre de la clave no permite iniciar consultas.</p>}
@@ -121,15 +122,11 @@ export function AIProviderSettings() {
             </>}
             <>{mode === "oauth" && <AISubscriptionConnection key={provider} provider={provider} revision={config?.revision} disabled={busy || dirty || config?.auth_mode !== "oauth"} onRefresh={refresh} />}</>
             <div className="adminField"><span>Modelo</span>{models.length > 0 && !customModel
-              ? <select value={model} onChange={(event) => {
-                  if (event.target.value === "__custom__") { setCustomModel(true); setModel(""); }
-                  else setModel(event.target.value);
-                }}>
-                  <option value="">Selecciona un modelo</option>
-                  {models.map((id) => <option key={id} value={id}>{id}</option>)}
-                  <option value="__custom__">Escribir un modelo personalizado…</option>
-                </select>
-              : <input value={model} maxLength={150} placeholder="Escribe el identificador del modelo" onChange={(event) => setModel(event.target.value)} />}
+              ? <Select aria-label="Modelo" value={model} onChange={(next) => {
+                  if (next === "__custom__") { setCustomModel(true); setModel(""); }
+                  else setModel(next);
+                }} options={[{ value: "", label: "Selecciona un modelo" }, ...models.map((id) => ({ value: id, label: id })), { value: "__custom__", label: "Escribir un modelo personalizado…" }]} />
+              : <input autoComplete="off" value={model} maxLength={150} placeholder="Escribe el identificador del modelo" onChange={(event) => setModel(event.target.value)} />}
               {customModel && models.length > 0 && <button className="adminTextButton" type="button" onClick={() => { setCustomModel(false); setModel(""); }}>Elegir del catálogo</button>}
             </div>
             <button className="secondaryButton" type="button" disabled={busy || (mode !== "local" && mode !== "oauth" && !secret && !config?.has_secret) || (mode === "oauth" && (!config || config.auth_mode !== "oauth"))} onClick={() => void discoverModels()}>Consultar modelos</button>

@@ -9,6 +9,8 @@
  *   - vercel.env: pégalo en Vercel → Settings → Environment Variables (Production).
  *   - credenciales-jurado.md: texto para el correo al jurado.
  *   - qr-jurado-admin.png y qr-jurado-recepcion.png: QR para la app autenticadora.
+ * Y en entregable-jurado/ (también excluida de git) la carpeta que se entrega al jurado: enlaces,
+ * guía paso a paso (docs/guia-jurado.md), credenciales de Producción, README, QR y scripts del webhook.
  * Si ya hay credenciales generadas, las conserva (igual que la clave de IA y las URLs de Slack ya
  * rellenadas); --nuevas crea otras, lo que invalida las que ya enviaste o configuraste.
  */
@@ -136,6 +138,119 @@ writeFileSync(join(outDir, "vercel.env"), env);
 writeFileSync(join(outDir, "credenciales-jurado.md"), sheet);
 await QRCode.toFile(join(outDir, "qr-jurado-admin.png"), otpauth(admin.id, admin.totp), { width: 360, margin: 2 });
 await QRCode.toFile(join(outDir, "qr-jurado-recepcion.png"), otpauth(reception.id, reception.totp), { width: 360, margin: 2 });
+// --- Carpeta entregable para el jurado (excluida de git: lleva las credenciales de Producción) ---
+const REPO = "https://github.com/rgkue/vigilia-project";
+const DOCS_URL = "https://vigilia-project-pi.vercel.app";
+const kitDir = join(root, "entregable-jurado");
+mkdirSync(join(kitDir, "qr"), { recursive: true });
+mkdirSync(join(kitDir, "scripts"), { recursive: true });
+const read = (path) => readFileSync(join(root, path), "utf8").replace(/\r\n/g, "\n");
+// Los enlaces relativos apuntan a GitHub, salvo scripts/, que viaja dentro de la carpeta.
+const absoluteLinks = (markdown, base = "") => markdown.replace(/\]\((?!https?:|#|scripts\/)([^)\s]+)\)/g, (_, path) => {
+  const full = join(base, path).replace(/\\/g, "/");
+  return `](${REPO}/${full.endsWith("/") ? "tree" : "blob"}/main/${full})`;
+});
+const kitNote = `> Copia incluida en la carpeta del jurado. Versión siempre actualizada: ${DOCS_URL}\n\n`;
+writeFileSync(join(kitDir, "README.md"), kitNote + absoluteLinks(read("README.md")));
+writeFileSync(join(kitDir, "01-GUIA-PASO-A-PASO.md"), kitNote + absoluteLinks(read("docs/guia-jurado.md"), "docs")
+  .replace("Necesitas las credenciales de evaluación que el equipo envió al jurado (no están en el repositorio).",
+    "Las credenciales están en `02-CREDENCIALES-PRODUCCION.md` y los QR en `qr/`."));
+const fixUrls = (text) => text.replace(/https:\/\/vigilia-(demo|app)\.vercel\.app/g, appUrl);
+writeFileSync(join(kitDir, "scripts", "demo-webhook.sh"), fixUrls(read("scripts/demo-webhook.sh")));
+// PowerShell 5.1 necesita BOM para leer bien los acentos.
+writeFileSync(join(kitDir, "scripts", "demo-webhook.ps1"), "﻿" + fixUrls(read("scripts/demo-webhook.ps1").replace(/^﻿/, "")).replace(/\n/g, "\r\n"));
+writeFileSync(join(kitDir, "scripts", "ejemplo-ingreso.json"), read("scripts/ejemplo-ingreso.json"));
+writeFileSync(join(kitDir, "scripts", "ejemplo-ingreso-produccion.json"), `${JSON.stringify({
+  evento: { id: "HIS-JURADO-001", fecha: "2026-09-26T10:00:00-05:00" }, paciente: { cedula: "8-100-100" },
+  hospital: { nombre: "Hospital Demo · Emergencias" }, atencion: { motivo: "Crisis asmática con dificultad para respirar", triage: 2 },
+}, null, 2)}\n`);
+for (const name of ["qr-jurado-admin.png", "qr-jurado-recepcion.png"]) writeFileSync(join(kitDir, "qr", name), readFileSync(join(outDir, name)));
+
+writeFileSync(join(kitDir, "00-LEEME-PRIMERO.md"), `# Vigilia · Entregable para el jurado
+
+**hackIAthon 2026 · Reto 4: Sistema de Alerta Temprana de Ingresos a Emergencias.** Equipo: Isaac Muñoz y Rubén Pino.
+
+Vigilia recibe por webhook el ingreso de un asegurado a emergencias, verifica la póliza y los antecedentes, usa IA real para sugerir qué antecedentes se relacionan con el motivo y avisa a la vez a admisiones del hospital y al gestor de casos de la aseguradora. Una persona confirma las sugerencias. Todos los datos son ficticios.
+
+## Enlaces
+
+| Qué | Enlace |
+|---|---|
+| **Aplicación** (al abrirla eliges Demo o Producción) | ${appUrl} |
+| Repositorio público | ${REPO} |
+| Documentación en vivo | ${DOCS_URL} |
+| Guía paso a paso (en vivo) | ${DOCS_URL}/?doc=docs/guia-jurado.md |
+| Guion de demostración de 3 minutos | ${DOCS_URL}/?doc=docs/demo.md |
+| Webhook del hospital | \`POST ${appUrl}/api/webhook/ingreso\` |
+| Estado del servicio (sin credenciales) | ${appUrl}/api/public-config |
+
+## Contenido de la carpeta
+
+| Archivo | Para qué |
+|---|---|
+| \`01-GUIA-PASO-A-PASO.md\` | Cómo usar el modo Demo y el modo Producción |
+| \`02-CREDENCIALES-PRODUCCION.md\` | Cuentas de evaluación de Producción y token del webhook |
+| \`README.md\` | README del repositorio: requisitos del reto, arquitectura y limitaciones |
+| \`qr/\` | QR para añadir las cuentas a una app autenticadora |
+| \`scripts/\` | Envío de ingresos ficticios al webhook (PowerShell y bash) y ejemplos JSON |
+
+Empieza por el modo Demo (sin credenciales, unos 5 minutos) y sigue con Producción. Abre la terminal en esta carpeta para que los comandos encuentren \`scripts/\`.
+
+> Las credenciales de esta carpeta son solo para la evaluación: por favor no las publiques.
+`);
+
+writeFileSync(join(kitDir, "02-CREDENCIALES-PRODUCCION.md"), `# Credenciales de evaluación · Modo Producción
+
+Aplicación: ${appUrl} → pie de página **Cambiar modo** → **Producción**. El modo Demo no necesita credenciales.
+
+## Cuentas del personal
+
+| Cuenta | ID de acceso | Clave TOTP (configuración manual) | Contraseña | Permisos |
+|---|---|---|---|---|
+| Administración | \`${admin.id}\` | \`${admin.totp}\` | \`${admin.password}\` | Todo: personas, integraciones, auditoría, revisión de la IA e ingresos |
+| Recepción | \`${reception.id}\` | \`${reception.totp}\` | No usa | Registrar ingresos y consultar la actividad |
+
+Añade las cuentas a tu app autenticadora escaneando \`qr/qr-jurado-admin.png\` y \`qr/qr-jurado-recepcion.png\`, o escribiendo la clave (TOTP, SHA-1, 6 dígitos, cada 30 s, emisor Vigilia).
+
+**Cómo entrar:** **No tengo mi gafete · escribir mi ID** → escribe el ID → **Continuar** → código de 6 dígitos → **Verificar código** → en Administración, la contraseña → **Entrar**.
+Cada código sirve una sola vez: si lo rechaza, espera al siguiente. Estas cuentas no se pueden modificar desde la interfaz y se restablecen en cada arranque.
+
+## Webhook del hospital (integración HIS simulada)
+
+\`\`\`
+POST ${appUrl}/api/webhook/ingreso
+X-Vigilia-Integration: sim-ingreso-his
+Authorization: Bearer ${ingressToken}
+\`\`\`
+
+Cinco escenarios:
+
+\`\`\`powershell
+powershell -ExecutionPolicy Bypass -File .\\scripts\\demo-webhook.ps1 -Url ${appUrl} -Modo produccion -Token ${ingressToken}
+\`\`\`
+
+\`\`\`bash
+MODO=produccion TOKEN=${ingressToken} sh scripts/demo-webhook.sh ${appUrl}
+\`\`\`
+
+Un solo ingreso con el formato del HIS (\`scripts/ejemplo-ingreso-produccion.json\`; cambia \`evento.id\` para registrar otro):
+
+\`\`\`powershell
+Invoke-RestMethod -Method Post -Uri "${appUrl}/api/webhook/ingreso" -ContentType "application/json; charset=utf-8" -Headers @{ "X-Vigilia-Integration" = "sim-ingreso-his"; "Authorization" = "Bearer ${ingressToken}" } -InFile scripts/ejemplo-ingreso-produccion.json
+\`\`\`
+
+\`\`\`bash
+curl -X POST ${appUrl}/api/webhook/ingreso -H "Content-Type: application/json" -H "X-Vigilia-Integration: sim-ingreso-his" -H "Authorization: Bearer ${ingressToken}" --data-binary @scripts/ejemplo-ingreso-produccion.json
+\`\`\`
+
+Rotar la credencial desde **Administración → Integraciones** emite otra, pero este token sigue funcionando.
+
+## Webhook del modo Demo (clave pública)
+
+Cabecera \`X-Vigilia-Key: ${demoKey}\` con el contrato de Vigilia (\`scripts/ejemplo-ingreso.json\`). Ver la guía, parte A2.
+`);
+
 console.log(`Credenciales ${Object.keys(previous).length && !args.nuevas ? "actualizadas (se conservaron las existentes)" : "generadas"} en ${outDir}`);
+console.log(`Carpeta para el jurado lista en ${kitDir}`);
 console.log("1) Completa los PEGA_AQUI_... de vercel.env y pégalo en las variables del proyecto de Vercel.");
-console.log("2) Envía credenciales-jurado.md y los dos QR al jurado junto con el enlace y el repositorio.");
+console.log("2) Entrega la carpeta entregable-jurado/ (comprimida o en Drive) junto con el enlace y el repositorio.");

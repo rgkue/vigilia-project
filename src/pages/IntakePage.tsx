@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { CopyButton } from "../components/CopyButton";
 import { Icon } from "../components/Icon";
+import { DateTimeField, Select, SuggestInput } from "../components/Pickers";
 import { ResultPanel } from "../components/ResultPanel";
 import type { AgentResponse, IngressEvent } from "../types";
 
@@ -9,6 +10,15 @@ type FieldErrors = Partial<Record<"cedula" | "hospital" | "motivo_ingreso" | "fe
 
 // Cédula panameña: provincia (1–13), PE, E o N, con AV/PI opcional; tomo y asiento numéricos.
 const PANAMA_ID = /^(?:PE|E|N|1[0-3]|[1-9])(?:AV|PI)?-\d{1,4}-\d{1,6}$/i;
+
+const TRIAGE_OPTIONS = [
+  { value: "", label: "Sin clasificación" },
+  { value: "1", label: "1 · Atención inmediata" },
+  { value: "2", label: "2 · Muy urgente" },
+  { value: "3", label: "3 · Urgente" },
+  { value: "4", label: "4 · Menos urgente" },
+  { value: "5", label: "5 · No urgente" },
+];
 
 function localDateTimeValue(date = new Date()) {
   const local = new Date(date);
@@ -106,11 +116,10 @@ export function IntakePage({ available, statusMessage, result, pending, error, h
           <p className="panelIntro">Completa los datos que aparecen en el aviso del centro de atención.</p>
           <fieldset className="liveFields" disabled={pending}>
             <label className="liveField"><span>Identificación del asegurado</span><input ref={firstField} {...fieldProps("cedula")} autoComplete="off" inputMode="text" maxLength={20} required value={draft.cedula} onChange={(event) => update("cedula", event.target.value)} placeholder="8-123-4567" />{fieldError("cedula") ?? (idWarning && <span className="fieldHint">{idWarning}</span>)}</label>
-            <label className="liveField"><span>Centro de atención</span><input {...fieldProps("hospital")} list="intake-hospitals" autoComplete="organization" maxLength={80} required value={draft.hospital} onChange={(event) => update("hospital", event.target.value)} placeholder="Nombre del centro" />{fieldError("hospital")}</label>
-            <datalist id="intake-hospitals">{hospitals.map((name) => <option key={name} value={name} />)}</datalist>
+            <label className="liveField"><span>Centro de atención</span><SuggestInput {...fieldProps("hospital")} suggestions={hospitals} autoComplete="off" maxLength={80} required value={draft.hospital} onChange={(value) => update("hospital", value)} placeholder="Nombre del centro" />{fieldError("hospital")}</label>
             <label className="liveField liveFieldWide"><span>Motivo del ingreso</span><textarea {...fieldProps("motivo_ingreso")} autoComplete="off" maxLength={300} minLength={3} required rows={4} value={draft.motivo_ingreso} onChange={(event) => update("motivo_ingreso", event.target.value)} placeholder="Descripción recibida por admisiones" />{fieldError("motivo_ingreso")}</label>
-            <label className="liveField"><span>Nivel de triage <small>Opcional</small></span><select value={draft.triage ?? ""} onChange={(event) => update("triage", event.target.value ? Number(event.target.value) : undefined)}><option value="">Sin clasificación</option><option value="1">1 · Atención inmediata</option><option value="2">2 · Muy urgente</option><option value="3">3 · Urgente</option><option value="4">4 · Menos urgente</option><option value="5">5 · No urgente</option></select></label>
-            <label className="liveField"><span>Fecha y hora de ingreso</span><input {...fieldProps("fecha_ingreso")} type="datetime-local" required max={localDateTimeValue()} value={draft.fecha_ingreso} onChange={(event) => update("fecha_ingreso", event.target.value)} />{fieldError("fecha_ingreso")}</label>
+            <label className="liveField"><span>Nivel de triage <small>Opcional</small></span><Select value={draft.triage ? String(draft.triage) : ""} onChange={(value) => update("triage", value ? Number(value) : undefined)} options={TRIAGE_OPTIONS} /></label>
+            <label className="liveField"><span>Fecha y hora de ingreso</span><DateTimeField {...fieldProps("fecha_ingreso")} required max={localDateTimeValue()} value={draft.fecha_ingreso} onChange={(value) => update("fecha_ingreso", value)} />{fieldError("fecha_ingreso")}</label>
           </fieldset>
           <label className="authorizationCheck"><input type="checkbox" checked={authorized} onChange={(event) => setAuthorized(event.target.checked)} /><span>Confirmo que estoy autorizado para compartir esta información con el servicio de Vigilia.</span></label>
           <div className="livePrivacyNote"><Icon name="shield" size={16} /><p>El resultado es administrativo y debe revisarlo el equipo responsable antes de actuar.</p></div>
