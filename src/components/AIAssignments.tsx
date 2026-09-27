@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { jsonRequest } from "../lib/clientApi";
+import { Select } from "./Pickers";
 
 type Assignment = { integration_id: string; name: string; status: string; revision: string };
 type Integration = { id: string; name: string; user_id: string | null; status: string | null; revision: string | null };
@@ -56,10 +57,8 @@ export function AIAssignments({ canManage }: { canManage: boolean }) {
       {!overview?.integrations.length && <p className="adminHelp">Crea una integración de ingreso en Administración para asignarle una cuenta responsable.</p>}
       {overview?.integrations.map(item => <div className="aiAssignmentRow" key={item.id}>
         <label className="adminField"><span>{item.name} · {item.status === "accepted" ? "Autorizada" : item.status === "pending" ? "Esperando consentimiento" : "Sin autorización"}</span>
-          <select disabled={busy} value={choices[item.id] ?? ""} onChange={event => setChoices(previous => ({ ...previous, [item.id]: event.target.value }))}>
-            <option value="">Selecciona una persona</option>
-            {overview.users.map(user => <option value={user.id} key={user.id}>{user.display_name || user.id}</option>)}
-          </select>
+          <Select disabled={busy} value={choices[item.id] ?? ""} onChange={value => setChoices(previous => ({ ...previous, [item.id]: value }))}
+            options={[{ value: "", label: "Selecciona una persona" }, ...overview.users.map(user => ({ value: user.id, label: user.display_name || user.id }))]} />
         </label>
         <div className="adminFormActions">
           <button className="secondaryButton" disabled={busy || !choices[item.id]} onClick={() => void act(() => jsonRequest(`/admin/ai/assignments/${encodeURIComponent(item.id)}`, { method: "PUT", body: JSON.stringify({ user_id: choices[item.id], revision: item.revision }) }))}>Solicitar autorización</button>

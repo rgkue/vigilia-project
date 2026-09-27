@@ -3,6 +3,7 @@ import { classificationLabel } from "../types";
 import type { AgentResponse, ClassificationResult, JevRelation } from "../types";
 import { formatDate, integrationLabel, integrationStatusLabel, levelLabel, notificationLabel, relationName, relativeTime, verdictLabel } from "../lib/labels";
 import { CopyButton } from "./CopyButton";
+import { Select } from "./Pickers";
 import { Sheet } from "./Dialogs";
 import { ResultPanel } from "./ResultPanel";
 
@@ -47,9 +48,9 @@ function ClassificationReviewCard({ classification, index, reviewerName, onRevie
   return <form className="reviewCard" onSubmit={submit}>
     <div><strong>{classification.condition}</strong><span>{classification.suggestedRelation ? `Sugerencia: ${relationName(classification.suggestedRelation)}` : "Clasificación pendiente"}</span></div>
     {!classification.suggestedRelation && <p>La fuente no entregó una sugerencia confirmada. Puedes completar una clasificación humana.</p>}
-    <label className="reviewField"><span>Resolución</span><select value={relation} onChange={(event) => setRelation(event.target.value as ReviewRelation)}>
-      <option value="DIRECTA">Confirmar relación directa</option><option value="POSIBLE">Marcar relación posible</option><option value="NINGUNA">Descartar relación</option>
-    </select></label>
+    <label className="reviewField"><span>Resolución</span><Select value={relation} onChange={(next) => setRelation(next as ReviewRelation)} options={[
+      { value: "DIRECTA", label: "Confirmar relación directa" }, { value: "POSIBLE", label: "Marcar relación posible" }, { value: "NINGUNA", label: "Descartar relación" },
+    ]} /></label>
     <label className="reviewField"><span>Motivo de revisión</span><textarea required minLength={3} maxLength={1000} rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explica brevemente la resolución" /></label>
     {error && <p className="reviewError" role="alert">{error}</p>}
     <button className="primaryButton" type="submit" disabled={working || reason.trim().length < 3}>{working ? "Guardando revisión…" : "Guardar resolución"}</button>

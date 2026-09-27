@@ -3,6 +3,7 @@ import { PeoplePanel } from "./PeoplePanel";
 import { CopyButton } from "./CopyButton";
 import { useConfirm } from "./Dialogs";
 import { Icon } from "./Icon";
+import { Select } from "./Pickers";
 import { useToast } from "./Toast";
 import {
   disableIntegration,
@@ -359,11 +360,11 @@ export function AdminPanel({ permissions, tab, onTabChange, backendOnline }: { p
               </div>
               <form className="adminEditor glassPanel" onSubmit={submitIntegration}>
                 <div className="adminSectionHead"><div><span className="eyebrow">CONECTOR REST</span><h2>{selectedIntegration ? "Editar conexión" : "Configurar conexión"}</h2></div></div>
-                <label className="adminField"><span>Tipo de sistema</span><select value={integrationForm.kind} onChange={(event) => { const kind = event.target.value as IntegrationKind; const base = blankIntegration(kind); setIntegrationForm({ ...integrationForm, ...base }); loadMapping(base.field_map); }}>{KINDS.map((kind) => <option key={kind} value={kind}>{KIND_LABELS[kind]}</option>)}</select></label>
-                <label className="adminField"><span>Nombre</span><input required maxLength={100} value={integrationForm.name} onChange={(event) => setIntegrationForm({ ...integrationForm, name: event.target.value })} /></label>
-                <label className="adminField"><span>Endpoint HTTPS</span><input required type="url" placeholder="https://sistema.cliente.pa/api/…" value={integrationForm.endpoint_url} onChange={(event) => setIntegrationForm({ ...integrationForm, endpoint_url: event.target.value })} /></label>
+                <label className="adminField"><span>Tipo de sistema</span><Select value={integrationForm.kind} onChange={(value) => { const kind = value as IntegrationKind; const base = blankIntegration(kind); setIntegrationForm({ ...integrationForm, ...base }); loadMapping(base.field_map); }} options={KINDS.map((kind) => ({ value: kind, label: KIND_LABELS[kind] }))} /></label>
+                <label className="adminField"><span>Nombre</span><input autoComplete="off" required maxLength={100} value={integrationForm.name} onChange={(event) => setIntegrationForm({ ...integrationForm, name: event.target.value })} /></label>
+                <label className="adminField"><span>Endpoint HTTPS</span><input autoComplete="off" required type="url" placeholder="https://sistema.cliente.pa/api/…" value={integrationForm.endpoint_url} onChange={(event) => setIntegrationForm({ ...integrationForm, endpoint_url: event.target.value })} /></label>
                 {integrationForm.kind === "ingress" && <p className="adminHelp">Vigilia recibe eventos en <code>/webhook/ingreso</code>. Este endpoint identifica al sistema emisor y no se invoca desde Vigilia.</p>}
-                <div className="adminFieldGrid"><label className="adminField"><span>Método</span><select value={integrationForm.method} onChange={(event) => setIntegrationForm({ ...integrationForm, method: event.target.value as "GET" | "POST" })}><option>GET</option><option>POST</option></select></label><label className="adminField"><span>Campo de consulta</span><input value={integrationForm.lookup_parameter} onChange={(event) => setIntegrationForm({ ...integrationForm, lookup_parameter: event.target.value })} /></label></div>
+                <div className="adminFieldGrid"><label className="adminField"><span>Método</span><Select value={integrationForm.method} onChange={(method) => setIntegrationForm({ ...integrationForm, method: method as "GET" | "POST" })} options={[{ value: "GET", label: "GET" }, { value: "POST", label: "POST" }]} /></label><label className="adminField"><span>Campo de consulta</span><input autoComplete="off" value={integrationForm.lookup_parameter} onChange={(event) => setIntegrationForm({ ...integrationForm, lookup_parameter: event.target.value })} /></label></div>
                 <label className="adminField"><span>Token de acceso <small>{integrationForm.has_secret ? "· guardado; vacío conserva el actual" : "· opcional"}</small></span><input type="password" autoComplete="new-password" maxLength={4096} value={integrationForm.secret} onChange={(event) => setIntegrationForm({ ...integrationForm, secret: event.target.value })} placeholder={integrationForm.has_secret ? "Credencial guardada" : "Pega el token del sistema"} /></label>
 
                 <fieldset className="mappingFieldset">
@@ -374,8 +375,8 @@ export function AdminPanel({ permissions, tab, onTabChange, backendOnline }: { p
                       {mappingRows.length > 0 && <div className="mappingHead" aria-hidden="true"><span>Campo de Vigilia</span><span>Ruta en el sistema</span></div>}
                       {mappingRows.map((row, index) => (
                         <div className="mappingRow" key={index}>
-                          <input aria-label={`Campo de Vigilia ${index + 1}`} value={row.key} onChange={(event) => setMappingRows((rows) => rows.map((item, position) => position === index ? { ...item, key: event.target.value } : item))} />
-                          <input aria-label={`Ruta en el sistema ${index + 1}`} value={row.path} onChange={(event) => setMappingRows((rows) => rows.map((item, position) => position === index ? { ...item, path: event.target.value } : item))} />
+                          <input autoComplete="off" aria-label={`Campo de Vigilia ${index + 1}`} value={row.key} onChange={(event) => setMappingRows((rows) => rows.map((item, position) => position === index ? { ...item, key: event.target.value } : item))} />
+                          <input autoComplete="off" aria-label={`Ruta en el sistema ${index + 1}`} value={row.path} onChange={(event) => setMappingRows((rows) => rows.map((item, position) => position === index ? { ...item, path: event.target.value } : item))} />
                           <button type="button" className="adminTextButton" aria-label={`Quitar fila ${index + 1}`} onClick={() => setMappingRows((rows) => rows.filter((_, position) => position !== index))}><Icon name="close" size={14} /></button>
                         </div>
                       ))}
@@ -415,7 +416,7 @@ export function AdminPanel({ permissions, tab, onTabChange, backendOnline }: { p
           {tab === "audit" && canAudit && (
             <section className="adminCollection glassPanel auditCollection">
               <div className="adminSectionHead"><div><span className="eyebrow">TRAZABILIDAD</span><h2>Actividad administrativa</h2></div>
-                <label className="toolbarSelect"><span className="srOnly">Tipo de acción</span><select value={auditAction} onChange={(event) => setAuditAction(event.target.value)}>{AUDIT_ACTION_GROUPS.map((group) => <option key={group.value} value={group.value}>{group.label}</option>)}</select></label>
+                <label className="toolbarSelect"><span className="srOnly">Tipo de acción</span><Select value={auditAction} onChange={setAuditAction} options={AUDIT_ACTION_GROUPS} /></label>
               </div>
               <p className="adminHelp">El registro conserva quién cambió accesos y conexiones y quién resolvió una revisión. No incluye credenciales ni texto clínico.</p>
               <div className="auditTableWrap"><table className="auditTable"><thead><tr><th>Fecha</th><th>Persona</th><th>Acción</th><th>Recurso</th></tr></thead><tbody>{audit.map((entry) => <tr key={entry.id}>

@@ -5,8 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Vigilia · Documentación del proyecto</title>
 <meta name="description" content="Documentación en vivo de Vigilia, sistema de alerta temprana de ingresos a emergencias (hackIAthon 2026, reto 4). Se lee directamente del repositorio.">
-<meta name="theme-color" content="#060607">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#060607" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f6f6" media="(prefers-color-scheme: light)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Vigilia">
+<meta property="og:locale" content="es_ES">
+<meta property="og:url" content="https://vigilia-project-pi.vercel.app/">
+<meta property="og:title" content="Vigilia · Documentación del proyecto">
+<meta property="og:description" content="Alerta temprana de ingresos a emergencias (hackIAthon 2026, reto 4): cómo evaluarlo en 5 minutos, guion de demostración, contratos de la API y operación.">
+<meta property="og:image" content="https://vigilia-project-pi.vercel.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Vigilia · Alerta temprana de ingresos a emergencias. Documentación en vivo del proyecto.">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://api.github.com" crossorigin>
 <style>
 :root {
   color-scheme: dark;
@@ -15,16 +32,20 @@
   --surface-2: #17171a;
   --text: #f2f2f5;
   --muted: rgba(235, 235, 245, .7);
-  --faint: rgba(235, 235, 245, .46);
+  --faint: rgba(235, 235, 245, .56);
   --line: rgba(255, 255, 255, .1);
   --line-strong: rgba(255, 255, 255, .2);
   --accent: #8fceb2;
   --accent-strong: #a8e7cb;
   --accent-soft: rgba(143, 206, 178, .1);
+  --on-accent: #06130e;
   --warn: #efcf91;
   --code-bg: #0c0c0e;
   --code-text: #e7e7ec;
+  --backdrop: rgba(0, 0, 0, .62);
+  --shadow: 0 24px 70px rgba(0, 0, 0, .55);
   --radius: 14px;
+  --gutter: clamp(16px, 3vw, 32px);
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "Cascadia Code", Menlo, Consolas, monospace;
 }
@@ -36,15 +57,18 @@
     --surface-2: #eef1f0;
     --text: #12181b;
     --muted: #46545a;
-    --faint: #6b787d;
+    --faint: #5b686d;
     --line: #d9e0de;
     --line-strong: #b9c5c2;
     --accent: #0e6b56;
     --accent-strong: #0a5543;
     --accent-soft: rgba(14, 107, 86, .08);
+    --on-accent: #ffffff;
     --warn: #7a5200;
     --code-bg: #10161a;
     --code-text: #e8eef0;
+    --backdrop: rgba(18, 24, 27, .38);
+    --shadow: 0 24px 60px rgba(18, 24, 27, .22);
   }
 }
 *, *::before, *::after { box-sizing: border-box; }
@@ -55,21 +79,28 @@ a:hover { color: var(--text); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .skip { position: absolute; left: -999px; top: 8px; z-index: 50; padding: 8px 12px; border-radius: 8px; background: var(--surface); }
 .skip:focus { left: 12px; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 
 /* Barra superior */
-.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px clamp(16px, 3vw, 32px); border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 86%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px var(--gutter); border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 86%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; color: var(--text); text-decoration: none; }
 .brand svg { flex: none; }
 .brand .name { font-weight: 700; letter-spacing: .14em; }
 .brand .sub { overflow: hidden; padding-left: 12px; border-left: 1px solid var(--line-strong); color: var(--faint); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.actions { display: flex; flex: none; gap: 8px; }
-.button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.actions { display: flex; flex: none; align-items: center; gap: 8px; }
+.actions nav { display: flex; gap: 8px; }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--text); cursor: pointer; font: 600 14px/1 var(--sans); text-decoration: none; white-space: nowrap; }
+.button svg { flex: none; }
 .button:hover { border-color: var(--accent); color: var(--text); }
-.button.primary { border-color: transparent; background: var(--accent); color: #06130e; }
-.button.primary:hover { background: var(--accent-strong); color: #06130e; }
+.button.primary { border-color: transparent; background: var(--accent); color: var(--on-accent); }
+.button.primary:hover { background: var(--accent-strong); color: var(--on-accent); }
+.button .short { display: none; }
+.searchButton { justify-content: flex-start; min-width: 210px; color: var(--faint); font-weight: 500; }
+.searchButton:hover { color: var(--text); }
+.searchButton kbd { margin-left: auto; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--faint); font: 600 11px/1 var(--mono); }
 
 /* Distribución */
-.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr) 220px; gap: clamp(20px, 3vw, 44px); max-width: 1320px; margin: 0 auto; padding: 28px clamp(16px, 3vw, 32px) 64px; }
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr) 220px; gap: clamp(20px, 3vw, 44px); max-width: 1320px; margin: 0 auto; padding: 28px var(--gutter) 64px; }
 .side { position: sticky; top: 84px; align-self: start; max-height: calc(100vh - 100px); overflow: auto; }
 .label { margin: 0 0 8px; color: var(--faint); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .docs ul, .toc ol { margin: 0; padding: 0; list-style: none; }
@@ -85,10 +116,15 @@ a:hover { color: var(--text); }
 
 /* Documento */
 main { min-width: 0; outline: none; }
-.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0 0 18px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--faint); font-size: 13.5px; }
-.meta .live { display: inline-flex; align-items: center; gap: 8px; color: var(--accent-strong); font-weight: 600; }
-.meta .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; max-width: 860px; margin: 0 0 22px; padding: 0 0 14px; border-bottom: 1px solid var(--line); color: var(--faint); font-size: 13.5px; }
+.meta .live { display: inline-flex; flex: none; align-items: center; gap: 8px; color: var(--accent-strong); font-weight: 600; }
+.meta .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); animation: live 2.4s ease-in-out infinite; }
+.meta .live.cached { color: var(--warn); }
+.meta .live.cached i { background: var(--warn); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 16%, transparent); animation: none; }
+@keyframes live { 50% { box-shadow: 0 0 0 7px transparent; } }
+.meta #doc-updated { flex: 1 1 16em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meta a { color: var(--muted); }
+.meta .sourceLink { flex: none; margin-left: auto; }
 .notice { padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--muted); }
 .notice.error { border-color: rgba(237, 133, 133, .45); }
 .loading { display: grid; gap: 12px; }
@@ -97,10 +133,22 @@ main { min-width: 0; outline: none; }
 .loading span:nth-child(3) { width: 85%; }
 .loading span:nth-child(4) { width: 70%; }
 @keyframes shimmer { to { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) { .loading span { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .loading span, .meta .live i { animation: none; } }
+
+/* Índice plegable para pantallas sin columna derecha */
+.tocInline { display: none; max-width: 860px; margin: 0 0 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.tocInline summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 16px; color: var(--muted); cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; }
+.tocInline summary::-webkit-details-marker { display: none; }
+.tocInline summary::after { width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; content: ""; transform: translateY(-2px) rotate(45deg); transition: transform .2s ease; }
+.tocInline[open] summary::after { transform: translateY(2px) rotate(-135deg); }
+.tocInline ol { margin: 0; padding: 6px 16px 12px; border-top: 1px solid var(--line); list-style: none; }
+.tocInline a { display: block; padding: 6px 0; color: var(--muted); font-size: 14px; line-height: 1.4; text-decoration: none; }
+.tocInline a:hover { color: var(--text); }
+.tocInline .depth-3 a { padding-left: 16px; font-size: 13.5px; }
 
 .markdown { max-width: 860px; overflow-wrap: anywhere; }
 .markdown > *:first-child { margin-top: 0; }
+.markdown .eyebrow { margin: 0 0 10px; color: var(--accent-strong); font-size: 12.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .markdown h1, .markdown h2, .markdown h3, .markdown h4 { position: relative; line-height: 1.2; letter-spacing: -.02em; }
 .markdown h1 { margin: 0 0 14px; font-size: clamp(30px, 4.4vw, 44px); letter-spacing: -.035em; }
 .markdown h2 { margin: 44px 0 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 26px; }
@@ -108,54 +156,119 @@ main { min-width: 0; outline: none; }
 .markdown h4 { margin: 24px 0 8px; font-size: 16px; }
 .markdown .anchor { position: absolute; left: -1.1em; padding-right: .3em; color: var(--faint); font-weight: 400; text-decoration: none; opacity: 0; }
 .markdown h2 .anchor { top: 10px; }
-.markdown :is(h1, h2, h3, h4):hover .anchor, .markdown .anchor:focus { opacity: 1; }
+.markdown :is(h1, h2, h3, h4):hover .anchor { opacity: 1; }
 .markdown p, .markdown ul, .markdown ol, .markdown blockquote, .markdown .tableWrap, .markdown .codeBlock { margin: 0 0 16px; }
 .markdown ul, .markdown ol { padding-left: 1.5em; }
 .markdown li { margin: 5px 0; }
 .markdown li > p { margin: 0 0 8px; }
 .markdown li > .codeBlock { margin: 10px 0 12px; }
-.markdown li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.3em; }
+/* Listas de tareas: marked pone la casilla dentro de un <p> cuando la lista lleva líneas en blanco. */
+.markdown li:has(> input[type="checkbox"]), .markdown li:has(> p:first-child > input[type="checkbox"]:first-child) { list-style: none; margin-left: -1.3em; }
 .markdown input[type="checkbox"] { margin: 0 8px 0 0; accent-color: var(--accent); vertical-align: -1px; }
 .markdown strong { color: var(--text); }
 .markdown blockquote { margin-left: 0; padding: 10px 16px; border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; background: var(--accent-soft); color: var(--muted); }
 .markdown blockquote p { margin: 6px 0; }
 .markdown hr { height: 1px; margin: 32px 0; border: 0; background: var(--line); }
 .markdown code { padding: .12em .38em; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); font: 500 .88em/1.4 var(--mono); }
+.markdown a[target="_blank"]::after { margin-left: .18em; content: "↗" / ""; font-size: .78em; opacity: .7; }
 .markdown img { max-width: 100%; border-radius: 10px; }
 .tableWrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
 .markdown table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .markdown th, .markdown td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .markdown th { background: var(--surface-2); color: var(--text); font-weight: 650; white-space: nowrap; }
+/* En celdas estrechas solo se parten URL y código, no las palabras. */
+.markdown :is(th, td) { overflow-wrap: break-word; }
+.markdown td :is(a, code) { overflow-wrap: anywhere; }
 .markdown tr:last-child td { border-bottom: 0; }
 .codeBlock { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--code-bg); }
 .codeBlock .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 14px; border-bottom: 1px solid rgba(255, 255, 255, .08); color: rgba(235, 235, 245, .5); font: 600 11.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
 .codeBlock .copy { min-height: 28px; padding: 0 10px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 8px; background: transparent; color: rgba(235, 235, 245, .82); cursor: pointer; font: 600 12px/1 var(--sans); }
 .codeBlock .copy:hover { border-color: #8fceb2; color: #fff; }
 .codeBlock pre { margin: 0; padding: 14px 16px; overflow-x: auto; color: var(--code-text); font: 13.5px/1.6 var(--mono); }
+.codeBlock pre.diagram { line-height: 1.35; }
 .codeBlock pre code { padding: 0; border: 0; background: none; color: inherit; font: inherit; }
 .raw { white-space: pre-wrap; font: 13.5px/1.6 var(--mono); }
 
-footer { max-width: 1320px; margin: 0 auto; padding: 22px clamp(16px, 3vw, 32px) 40px; border-top: 1px solid var(--line); color: var(--faint); font-size: 13.5px; }
+/* Documento anterior y siguiente */
+.pager { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 860px; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
+.pager a { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); text-decoration: none; transition: border-color .15s ease; }
+.pager a:hover { border-color: var(--accent); }
+.pager span { color: var(--faint); font-size: 13px; }
+.pager strong { font-size: 15.5px; line-height: 1.3; }
+.pager .next { grid-column: 2; text-align: right; }
+
+/* Búsqueda */
+.searchDialog { width: min(640px, calc(100vw - 24px)); max-height: min(620px, calc(100dvh - 24px)); margin: 10vh auto auto; padding: 0; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.searchDialog[open] { display: flex; flex-direction: column; }
+.searchDialog::backdrop { background: var(--backdrop); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.searchBox { display: flex; flex: none; align-items: center; gap: 10px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+.searchBox svg { flex: none; color: var(--faint); }
+.searchBox input { flex: 1; min-width: 0; height: 38px; border: 0; outline: 0; background: transparent; color: var(--text); font: 400 17px/1.2 var(--sans); }
+.searchBox input::placeholder { color: var(--faint); }
+.searchBox input::-webkit-search-cancel-button { display: none; }
+.searchClose { flex: none; min-height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--faint); cursor: pointer; font: 600 11.5px/1 var(--mono); }
+.searchClose:hover { border-color: var(--accent); color: var(--text); }
+.searchStatus { flex: none; margin: 0; padding: 10px 18px 2px; color: var(--faint); font-size: 13px; }
+.searchResults { margin: 0; padding: 6px 8px 10px; overflow: auto; list-style: none; overscroll-behavior: contain; }
+.searchResults a { display: grid; gap: 3px; padding: 10px 12px; border-radius: 12px; color: var(--text); text-decoration: none; }
+.searchResults a:hover { background: var(--surface-2); }
+.searchResults a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-soft); }
+.searchResults .where { color: var(--accent-strong); font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+.searchResults .snippet { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.searchResults mark { padding: 0 .1em; border-radius: 3px; background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--text); }
+
+.toast { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; z-index: 60; padding: 10px 16px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-size: 14px; transform: translateX(-50%); }
+.toast[hidden] { display: none; }
+
+footer { max-width: 1320px; margin: 0 auto; padding: 22px var(--gutter) 40px; border-top: 1px solid var(--line); color: var(--faint); font-size: 13.5px; }
 footer p { margin: 4px 0; }
 
 /* Pantallas medianas: sin índice lateral */
+@media (max-width: 1100px) {
+  .brand .sub { display: none; }
+}
 @media (max-width: 1180px) {
   .layout { grid-template-columns: 230px minmax(0, 1fr); }
   .toc { display: none; }
+  .tocInline:not([hidden]) { display: block; }
 }
-/* Teléfonos: documentos como pestañas desplazables */
+/* Teléfonos y tabletas: documentos como una sola fila de pestañas desplazable */
 @media (max-width: 820px) {
   .layout { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-top: 16px; }
   .side.docs { position: static; max-height: none; overflow: visible; }
   .docs .label, .docs .group-title { display: none; }
-  .docs ul { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
-  .docs .group { display: contents; }
-  .docs li { flex: none; }
+  #doc-list { display: flex; gap: 8px; margin: 0 calc(var(--gutter) * -1); padding: 2px var(--gutter) 4px; overflow-x: auto; scroll-padding-inline: var(--gutter); scroll-snap-type: x proximity; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--gutter), #000 calc(100% - var(--gutter) - 12px), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 var(--gutter), #000 calc(100% - var(--gutter) - 12px), transparent); }
+  #doc-list::-webkit-scrollbar { display: none; }
+  .docs .group, .docs .group > ul { display: contents; }
+  .docs li { flex: none; scroll-snap-align: start; }
   .docs a { border: 1px solid var(--line); white-space: nowrap; }
+  .docs a:focus-visible { outline-offset: -2px; }
   .brand .sub { display: none; }
+  .actions, .actions nav { gap: 6px; }
+  .button { padding: 0 12px; }
   .button .long { display: none; }
+  .button .short { display: inline; }
+  .searchButton, .repoButton { width: 38px; min-width: 0; padding: 0; justify-content: center; }
   .markdown h2 { font-size: 22px; }
   .markdown .anchor { display: none; }
+}
+@media (max-width: 560px) {
+  .pager { grid-template-columns: minmax(0, 1fr); }
+  .pager .next { grid-column: auto; }
+  .searchDialog { margin-top: 12px; }
+}
+
+@media print {
+  :root { color-scheme: light; --bg: #fff; --surface: #fff; --surface-2: #f2f4f3; --text: #111; --muted: #333; --faint: #555; --line: #ccc; --line-strong: #999; --accent: #0e6b56; --accent-strong: #0a5543; --accent-soft: #eef6f3; --code-bg: #f6f7f7; --code-text: #111; }
+  .top, .side, .tocInline, .pager, .skip, .toast, .codeBlock .copy, .markdown .anchor, .meta .sourceLink { display: none !important; }
+  .layout { display: block; max-width: none; padding: 0; }
+  .markdown, .meta { max-width: none; }
+  .codeBlock .bar { border-color: #ccc; color: #555; }
+  .codeBlock pre { white-space: pre-wrap; }
+  .codeBlock, .tableWrap, tr { break-inside: avoid; }
+  .markdown :is(h2, h3) { break-after: avoid; }
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/marked@18.0.14/lib/marked.umd.js" integrity="sha256-IVaId6k40sTn104n8Y5g2pa7c6aICWEMo5IW4e/rrmI=" crossorigin="anonymous" defer></script>
@@ -168,10 +281,19 @@ footer p { margin: 4px 0; }
     <span class="name">VIGILIA</span>
     <span class="sub">Documentación en vivo · hackIAthon 2026 · Reto 4</span>
   </a>
-  <nav class="actions" aria-label="Enlaces del proyecto">
-    <a class="button primary" href="https://vigilia-health.vercel.app" target="_blank" rel="noopener">Abrir <span class="long">la aplicación</span></a>
-    <a class="button" href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener">Repositorio</a>
-  </nav>
+  <div class="actions">
+    <button class="button searchButton" type="button" id="search-open" aria-haspopup="dialog" aria-label="Buscar en la documentación">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <span class="long">Buscar</span><kbd class="long" id="search-kbd" aria-hidden="true">Ctrl K</kbd>
+    </button>
+    <nav aria-label="Enlaces del proyecto">
+      <a class="button primary" href="https://vigilia-health.vercel.app" target="_blank" rel="noopener"><span class="long">Abrir la aplicación</span><span class="short">Abrir app</span></a>
+      <a class="button repoButton" href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener" aria-label="Repositorio en GitHub">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5" r="2.2"/><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="7" r="2.2"/><path d="M6 7.2v9.6M18 9.2c0 5-6 3.3-11.2 7.9"/></svg>
+        <span class="long">Repositorio</span>
+      </a>
+    </nav>
+  </div>
 </header>
 
 <div class="layout">
@@ -182,13 +304,18 @@ footer p { margin: 4px 0; }
 
   <main id="doc" tabindex="-1">
     <div class="meta" id="doc-meta" hidden>
-      <span class="live"><i aria-hidden="true"></i>Leído en vivo del repositorio</span>
+      <span class="live" id="doc-live"><i aria-hidden="true"></i><span id="doc-live-label">Leído en vivo de GitHub</span></span>
       <span id="doc-updated"></span>
-      <a id="doc-source" href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener">Ver este archivo en GitHub</a>
+      <a class="sourceLink" id="doc-source" href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener">Ver en GitHub</a>
     </div>
-    <article class="markdown" id="doc-body" aria-live="polite" aria-busy="true">
+    <details class="tocInline" id="toc-inline" hidden>
+      <summary>En esta página</summary>
+      <ol></ol>
+    </details>
+    <article class="markdown" id="doc-body" aria-busy="true">
       <div class="loading" role="status" aria-label="Cargando la documentación"><span></span><span></span><span></span><span></span></div>
     </article>
+    <nav class="pager" id="pager" aria-label="Documento anterior y siguiente" hidden></nav>
     <noscript><p class="notice">Esta página necesita JavaScript para leer la documentación. Consúltala en <a href="https://github.com/rgkue/vigilia-project#readme">GitHub</a>.</p></noscript>
   </main>
 
@@ -203,16 +330,32 @@ footer p { margin: 4px 0; }
   <p>El contenido se lee en cada visita desde <a href="https://github.com/rgkue/vigilia-project" target="_blank" rel="noopener">github.com/rgkue/vigilia-project</a> (rama <code>main</code>), así que siempre coincide con el repositorio.</p>
 </footer>
 
+<dialog class="searchDialog" id="search-dialog" aria-label="Buscar en la documentación">
+  <div class="searchBox" role="search">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+    <label class="visually-hidden" for="search-input">Buscar en la documentación</label>
+    <input id="search-input" type="search" placeholder="Buscar en la documentación" autocomplete="off" spellcheck="false" enterkeyhint="go" aria-controls="search-results">
+    <button class="searchClose" type="button" id="search-close" aria-label="Cerrar la búsqueda">Esc</button>
+  </div>
+  <p class="searchStatus" id="search-status" aria-live="polite"></p>
+  <ol class="searchResults" id="search-results" aria-label="Resultados"></ol>
+</dialog>
+<p class="visually-hidden" id="announcer" aria-live="polite"></p>
+<div class="toast" id="toast" role="status" hidden></div>
+
 <script>
 (() => {
   "use strict";
   const REPO = "rgkue/vigilia-project";
   const BRANCH = "main";
   const RAW = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/`;
+  // Respaldo si raw.githubusercontent.com no responde: jsDelivr sirve el mismo archivo, aunque puede ir unas horas por detrás.
+  const CDN = `https://cdn.jsdelivr.net/gh/${REPO}@${BRANCH}/`;
   const GITHUB = `https://github.com/${REPO}`;
   const DOCS = [
     { group: "Proyecto", items: [
       ["README.md", "Presentación y cómo evaluar"],
+      ["docs/guia-jurado.md", "Guía para el jurado"],
       ["docs/demo.md", "Guion de demostración"],
       ["docs/entrega-jurado.md", "Entrega y despliegue"],
     ] },
@@ -225,19 +368,30 @@ footer p { margin: 4px 0; }
       ["docs/plan.md", "Plan del producto"],
     ] },
   ];
+  const ORDER = DOCS.flatMap((group) => group.items.map(([path]) => path));
   const TITLES = new Map(DOCS.flatMap((group) => group.items));
+  const GROUPS = new Map(DOCS.flatMap((group) => group.items.map(([path]) => [path, group.group])));
   const ALLOWED_TAGS = new Set(["A", "P", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "LI", "CODE", "PRE", "BLOCKQUOTE", "TABLE",
     "THEAD", "TBODY", "TR", "TH", "TD", "STRONG", "EM", "B", "I", "S", "DEL", "HR", "BR", "IMG", "INPUT", "SPAN", "DIV", "SUP", "SUB",
     "DETAILS", "SUMMARY", "KBD"]);
   const ALLOWED_ATTRS = { A: ["href", "title"], IMG: ["src", "alt", "title", "width", "height"], INPUT: ["type", "checked", "disabled"],
     TH: ["align"], TD: ["align"], OL: ["start"], CODE: ["class"], DETAILS: ["open"] };
-  const body = document.getElementById("doc-body");
-  const meta = document.getElementById("doc-meta");
-  const updated = document.getElementById("doc-updated");
-  const source = document.getElementById("doc-source");
-  const tocPanel = document.getElementById("toc-panel");
-  const toc = document.getElementById("toc");
+  const DIAGRAM = /[─│┌┐└┘├┤┬┴┼▶◀▲▼]/;
+  const $ = (id) => document.getElementById(id);
+  const body = $("doc-body");
+  const meta = $("doc-meta");
+  const live = $("doc-live");
+  const liveLabel = $("doc-live-label");
+  const updated = $("doc-updated");
+  const source = $("doc-source");
+  const tocPanel = $("toc-panel");
+  const toc = $("toc");
+  const tocInline = $("toc-inline");
+  const pager = $("pager");
+  const docs = new Map();
+  const commits = new Map();
   let loadToken = 0;
+  let shownPath = "";
 
   const safePath = (value) => typeof value === "string" && /^[\w.\/-]+\.md$/i.test(value) && !value.split("/").includes("..") && !value.startsWith("/");
   const currentPath = () => {
@@ -248,6 +402,22 @@ footer p { margin: 4px 0; }
   const escapeHtml = (value) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
   // Mismo criterio que GitHub para los anclajes de los títulos.
   const slugify = (text) => text.trim().toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s/g, "-");
+  const fold = (text) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+  function announce(message) {
+    const announcer = $("announcer");
+    announcer.textContent = "";
+    requestAnimationFrame(() => { announcer.textContent = message; });
+  }
+
+  let toastTimer = 0;
+  function toast(message) {
+    const element = $("toast");
+    element.textContent = message;
+    element.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { element.hidden = true; }, 1800);
+  }
 
   function resolve(base, relative) {
     const parts = base.split("/").slice(0, -1);
@@ -258,8 +428,28 @@ footer p { margin: 4px 0; }
     return parts.join("/");
   }
 
+  async function download(path) {
+    try {
+      const response = await fetch(RAW + encodeURI(path), { cache: "no-store" });
+      if (response.ok) return { text: await response.text(), cached: false };
+      if (response.status === 404) throw new Error("missing");
+    } catch (error) {
+      if (error.message === "missing") throw error;
+    }
+    const response = await fetch(CDN + encodeURI(path));
+    if (!response.ok) throw new Error(response.status === 404 ? "missing" : "network");
+    return { text: await response.text(), cached: true };
+  }
+
+  // Cada documento se descarga una vez por visita: al volver a él o al pasar el ratón por su enlace ya está listo.
+  // Un fallo de red se reintenta en el siguiente intento; un documento inexistente no.
+  function fetchDoc(path) {
+    if (!docs.has(path)) docs.set(path, download(path).catch((error) => { if (error.message !== "missing") docs.delete(path); throw error; }));
+    return docs.get(path);
+  }
+
   function renderNav(active) {
-    const list = document.getElementById("doc-list");
+    const list = $("doc-list");
     list.replaceChildren(...DOCS.map((group) => {
       const item = document.createElement("li");
       item.className = "group";
@@ -280,6 +470,12 @@ footer p { margin: 4px 0; }
       item.append(title, inner);
       return item;
     }));
+    // En pantallas estrechas la lista es una fila desplazable: se centra el documento abierto.
+    const current = list.querySelector('[aria-current="page"]');
+    if (current && list.scrollWidth > list.clientWidth) {
+      const offset = current.getBoundingClientRect().left - list.getBoundingClientRect().left;
+      list.scrollLeft += offset - (list.clientWidth - current.offsetWidth) / 2;
+    }
   }
 
   // El Markdown viene del repositorio; aun así solo se conservan etiquetas y atributos de documentación.
@@ -300,10 +496,23 @@ footer p { margin: 4px 0; }
     }
   }
 
+  function parse(markdown) {
+    const template = document.createElement("template");
+    template.innerHTML = window.marked.parse(markdown, { gfm: true, breaks: false });
+    sanitize(template.content);
+    return template.content;
+  }
+
   function rewriteLinks(root, path) {
     for (const link of root.querySelectorAll("a[href]")) {
       const href = link.getAttribute("href");
-      if (/^(https?:)?\/\//i.test(href)) { link.target = "_blank"; link.rel = "noopener"; continue; }
+      if (/^(https?:)?\/\//i.test(href)) {
+        link.target = "_blank";
+        link.rel = "noopener";
+        // Las URL escritas tal cual se muestran sin "https://" para que quepan en tablas y pantallas estrechas.
+        if (link.textContent.trim() === href) link.textContent = href.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+        continue;
+      }
       if (/^mailto:/i.test(href)) continue;
       if (href.startsWith("#")) { link.setAttribute("href", "#" + decodeURIComponent(href.slice(1))); continue; }
       const [target, anchor = ""] = href.split("#");
@@ -326,21 +535,53 @@ footer p { margin: 4px 0; }
     }
   }
 
-  function enhance(root) {
+  function assignHeadingIds(root) {
     const seen = new Map();
-    const entries = [];
-    for (const heading of root.querySelectorAll("h1, h2, h3, h4")) {
+    const headings = [...root.querySelectorAll("h1, h2, h3, h4")];
+    for (const heading of headings) {
       const base = slugify(heading.textContent || "") || "seccion";
       const count = seen.get(base) || 0;
       seen.set(base, count + 1);
       heading.id = count ? `${base}-${count}` : base;
+    }
+    return headings;
+  }
+
+  function tocItems(headings) {
+    return headings.map((heading) => {
+      const item = document.createElement("li");
+      item.className = heading.tagName === "H3" ? "depth-3" : "depth-2";
+      const link = document.createElement("a");
+      link.href = `#${heading.id}`;
+      link.textContent = heading.textContent.replace(/^#/, "").trim();
+      item.append(link);
+      return item;
+    });
+  }
+
+  function enhance(root, path) {
+    const entries = [];
+    for (const heading of assignHeadingIds(root)) {
+      // Atajo para el ratón (copia el enlace); con teclado se llega a cada sección desde el índice.
       const anchor = document.createElement("a");
       anchor.className = "anchor";
       anchor.href = `#${heading.id}`;
-      anchor.setAttribute("aria-label", `Enlace a esta sección: ${heading.textContent}`);
+      anchor.tabIndex = -1;
+      anchor.setAttribute("aria-hidden", "true");
       anchor.textContent = "#";
       heading.prepend(anchor);
       if (heading.tagName === "H2" || heading.tagName === "H3") entries.push(heading);
+    }
+    const title = root.querySelector("h1");
+    if (title && GROUPS.has(path)) {
+      const eyebrow = document.createElement("p");
+      eyebrow.className = "eyebrow";
+      eyebrow.textContent = `${GROUPS.get(path)} · ${TITLES.get(path)}`;
+      title.before(eyebrow);
+    }
+    // Una tabla sin encabezado (| | |) deja una fila vacía arriba; se quita.
+    for (const head of root.querySelectorAll("thead")) {
+      if (![...head.querySelectorAll("th")].some((cell) => cell.textContent.trim())) head.remove();
     }
     for (const table of root.querySelectorAll("table")) {
       const wrap = document.createElement("div");
@@ -351,12 +592,14 @@ footer p { margin: 4px 0; }
     for (const pre of root.querySelectorAll("pre")) {
       const code = pre.querySelector("code");
       const language = (code?.className.match(/language-([\w-]+)/) || [])[1] || "texto";
+      const diagram = ["text", "texto"].includes(language) && DIAGRAM.test(pre.textContent);
+      if (diagram) pre.classList.add("diagram");
       const block = document.createElement("div");
       block.className = "codeBlock";
       const bar = document.createElement("div");
       bar.className = "bar";
       const label = document.createElement("span");
-      label.textContent = language;
+      label.textContent = diagram ? "diagrama" : language;
       const copy = document.createElement("button");
       copy.type = "button";
       copy.className = "copy";
@@ -365,6 +608,7 @@ footer p { margin: 4px 0; }
         try {
           await navigator.clipboard.writeText((code || pre).innerText.replace(/\n$/, ""));
           copy.textContent = "Copiado";
+          toast("Código copiado");
         } catch {
           copy.textContent = "No se pudo copiar";
         }
@@ -374,17 +618,22 @@ footer p { margin: 4px 0; }
       pre.replaceWith(block);
       block.append(bar, pre);
     }
-    toc.replaceChildren(...entries.map((heading) => {
-      const item = document.createElement("li");
-      item.className = heading.tagName === "H3" ? "depth-3" : "depth-2";
-      const link = document.createElement("a");
-      link.href = `#${heading.id}`;
-      link.textContent = heading.textContent.replace(/^#/, "").trim();
-      item.append(link);
-      return item;
-    }));
-    tocPanel.hidden = entries.length < 2;
+    toc.replaceChildren(...tocItems(entries));
+    tocInline.querySelector("ol").replaceChildren(...tocItems(entries));
+    tocInline.open = false;
+    tocPanel.hidden = tocInline.hidden = entries.length < 2;
     watchHeadings(entries);
+  }
+
+  // Los diagramas de texto se reducen hasta caber en la columna (con un mínimo legible) en lugar de obligar a desplazarse.
+  function fitDiagrams() {
+    for (const pre of body.querySelectorAll("pre.diagram")) {
+      pre.style.fontSize = "";
+      const style = getComputedStyle(pre);
+      const available = pre.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const needed = (pre.querySelector("code") || pre).getBoundingClientRect().width;
+      if (needed > available) pre.style.fontSize = `${Math.max(9.5, Math.floor(parseFloat(style.fontSize) * (available / needed) * 0.99 * 10) / 10)}px`;
+    }
   }
 
   let observer;
@@ -399,24 +648,52 @@ footer p { margin: 4px 0; }
     headings.forEach((heading) => observer.observe(heading));
   }
 
-  async function showUpdated(path, token) {
-    updated.textContent = "";
-    try {
-      const response = await fetch(`https://api.github.com/repos/${REPO}/commits?sha=${BRANCH}&per_page=1&path=${encodeURIComponent(path)}`, { headers: { Accept: "application/vnd.github+json" } });
-      if (!response.ok) return;
-      const [commit] = await response.json();
-      if (!commit || token !== loadToken) return;
-      const date = new Intl.DateTimeFormat("es", { dateStyle: "long", timeStyle: "short" }).format(new Date(commit.commit.committer.date));
-      const message = String(commit.commit.message || "").split("\n")[0].slice(0, 90);
-      const link = document.createElement("a");
-      link.href = commit.html_url;
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.textContent = message;
-      updated.replaceChildren(document.createTextNode(`Actualizado el ${date} · `), link);
-    } catch {
-      /* Sin la API de GitHub la página sigue funcionando. */
+  function lastCommit(path) {
+    if (!commits.has(path)) {
+      commits.set(path, fetch(`https://api.github.com/repos/${REPO}/commits?sha=${BRANCH}&per_page=1&path=${encodeURIComponent(path)}`, { headers: { Accept: "application/vnd.github+json" } })
+        .then((response) => (response.ok ? response.json() : []))
+        .then(([commit]) => commit || null)
+        .catch(() => null));
     }
+    return commits.get(path);
+  }
+
+  async function showUpdated(path, token) {
+    updated.replaceChildren();
+    const commit = await lastCommit(path);
+    // Sin la API de GitHub (o sin cuota) la página sigue funcionando sin esta línea.
+    if (!commit || token !== loadToken) return;
+    const date = new Date(commit.commit.committer.date);
+    const time = document.createElement("time");
+    time.dateTime = date.toISOString();
+    time.textContent = new Intl.DateTimeFormat("es", { dateStyle: "medium", timeStyle: "short" }).format(date);
+    const link = document.createElement("a");
+    link.href = commit.html_url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = String(commit.commit.message || "").split("\n")[0];
+    link.title = link.textContent;
+    updated.replaceChildren(document.createTextNode("Actualizado el "), time, document.createTextNode(" · "), link);
+  }
+
+  function renderPager(path) {
+    const index = ORDER.indexOf(path);
+    pager.hidden = index === -1;
+    if (index === -1) return;
+    const card = (target, className, label) => {
+      if (!target) return document.createElement("span");
+      const link = document.createElement("a");
+      link.className = className;
+      link.href = docUrl(target);
+      link.dataset.doc = target;
+      const hint = document.createElement("span");
+      hint.textContent = label;
+      const name = document.createElement("strong");
+      name.textContent = TITLES.get(target);
+      link.append(hint, name);
+      return link;
+    };
+    pager.replaceChildren(card(ORDER[index - 1], "prev", "← Anterior"), card(ORDER[index + 1], "next", "Siguiente →"));
   }
 
   function scrollToHash() {
@@ -426,66 +703,252 @@ footer p { margin: 4px 0; }
     else window.scrollTo({ top: 0 });
   }
 
-  async function load() {
+  // Al volver atrás se recupera la posición en la que se estaba leyendo.
+  history.scrollRestoration = "manual";
+  const remember = () => history.replaceState({ ...(history.state || {}), y: Math.round(window.scrollY) }, "");
+  function restoreScroll() {
+    const y = history.state?.y;
+    if (typeof y === "number") window.scrollTo({ top: y });
+    else scrollToHash();
+  }
+
+  async function load({ announceTitle = false, restore = false } = {}) {
     const token = ++loadToken;
     const path = currentPath();
+    shownPath = path;
     renderNav(path);
     source.href = `${GITHUB}/blob/${BRANCH}/${encodeURI(path)}`;
     body.setAttribute("aria-busy", "true");
     body.innerHTML = '<div class="loading" role="status" aria-label="Cargando la documentación"><span></span><span></span><span></span><span></span></div>';
     try {
-      const response = await fetch(RAW + encodeURI(path), { cache: "no-store" });
-      if (!response.ok) throw new Error(response.status === 404 ? "missing" : "network");
-      const markdown = await response.text();
+      const { text: markdown, cached } = await fetchDoc(path);
       if (token !== loadToken) return;
-      const template = document.createElement("template");
       if (window.marked?.parse) {
-        template.innerHTML = window.marked.parse(markdown, { gfm: true, breaks: false });
-        sanitize(template.content);
-        rewriteLinks(template.content, path);
-        body.replaceChildren(template.content);
-        enhance(body);
+        const content = parse(markdown);
+        rewriteLinks(content, path);
+        body.replaceChildren(content);
+        enhance(body, path);
+        fitDiagrams();
       } else {
         body.innerHTML = `<p class="notice">No se pudo cargar el formateador de Markdown; se muestra el texto original.</p><div class="raw">${escapeHtml(markdown)}</div>`;
-        tocPanel.hidden = true;
+        tocPanel.hidden = tocInline.hidden = true;
       }
       const heading = body.querySelector("h1");
-      document.title = `${TITLES.get(path) || heading?.textContent.replace(/^#/, "").trim() || path} · Vigilia`;
+      const title = TITLES.get(path) || heading?.textContent.replace(/^#/, "").trim() || path;
+      document.title = `${title} · Vigilia`;
+      live.classList.toggle("cached", cached);
+      liveLabel.textContent = cached ? "Copia en caché (jsDelivr)" : "Leído en vivo de GitHub";
       meta.hidden = false;
+      renderPager(path);
       showUpdated(path, token);
-      scrollToHash();
+      if (restore) restoreScroll(); else scrollToHash();
+      if (announceTitle) announce(`Documento abierto: ${title}`);
     } catch (error) {
       if (token !== loadToken) return;
-      meta.hidden = true;
-      tocPanel.hidden = true;
+      meta.hidden = pager.hidden = tocPanel.hidden = tocInline.hidden = true;
       body.innerHTML = error.message === "missing"
-        ? `<p class="notice error">Este documento no existe en la rama <code>${BRANCH}</code>. <a href="./">Volver a la presentación</a>.</p>`
-        : `<p class="notice error">No se pudo leer la documentación desde GitHub en este momento. Vuelve a intentarlo o consúltala directamente en <a href="${GITHUB}#readme" target="_blank" rel="noopener">el repositorio</a>.</p>`;
+        ? `<p class="notice error" role="alert">Este documento no existe en la rama <code>${BRANCH}</code>. <a href="./">Volver a la presentación</a>.</p>`
+        : `<p class="notice error" role="alert">No se pudo leer la documentación desde GitHub en este momento. Vuelve a intentarlo o consúltala directamente en <a href="${GITHUB}#readme" target="_blank" rel="noopener">el repositorio</a>.</p>`;
     } finally {
       if (token === loadToken) body.setAttribute("aria-busy", "false");
     }
   }
 
-  // Los documentos del repositorio se abren aquí mismo, sin recargar la página.
-  document.addEventListener("click", (event) => {
-    const link = event.target.closest?.("a[data-doc]");
-    if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    event.preventDefault();
-    const url = new URL(link.href);
-    if (url.search === location.search && url.pathname === location.pathname) {
-      history.pushState(null, "", url);
-      scrollToHash();
+  // ---------- Búsqueda en todos los documentos (Ctrl K o /) ----------
+  const dialog = $("search-dialog");
+  const input = $("search-input");
+  const results = $("search-results");
+  const status = $("search-status");
+  let index = null;
+  let sections = null;
+
+  function sectionsOf(path, markdown) {
+    const root = parse(markdown);
+    assignHeadingIds(root);
+    const doc = TITLES.get(path) || path;
+    const list = [];
+    let current = { path, id: "", heading: "", text: "" };
+    for (const node of root.children) {
+      if (/^H[1-4]$/.test(node.tagName)) {
+        if (current.id || current.text.trim()) list.push(current);
+        current = { path, id: node.id, heading: node.textContent.trim(), text: "" };
+      } else {
+        current.text += ` ${node.textContent}`;
+      }
+    }
+    list.push(current);
+    return list.map((section) => {
+      const text = section.text.replace(/\s+/g, " ").trim();
+      return { ...section, doc, text, foldedHeading: fold(section.heading), foldedText: fold(text), foldedDoc: fold(doc) };
+    });
+  }
+
+  function buildIndex() {
+    index ??= Promise.all(ORDER.map((path) => fetchDoc(path).then(({ text }) => sectionsOf(path, text)).catch(() => [])))
+      .then((lists) => { sections = lists.flat(); });
+    return index;
+  }
+
+  function rank(terms) {
+    const phrase = terms.join(" ");
+    return sections.map((section, order) => {
+      let score = 0;
+      for (const term of terms) {
+        const inHeading = section.foldedHeading.includes(term);
+        const inText = section.foldedText.includes(term);
+        if (!inHeading && !inText) return null;
+        score += (inHeading ? 8 : 0) + (inText ? 1 : 0) + (section.foldedDoc.includes(term) ? 2 : 0);
+      }
+      if (section.foldedHeading.startsWith(phrase)) score += 6;
+      return { section, score, order };
+    }).filter(Boolean).sort((a, b) => b.score - a.score || a.order - b.order).map(({ section }) => section);
+  }
+
+  function snippet(section, terms) {
+    const fragment = document.createDocumentFragment();
+    const { text, foldedText } = section;
+    // Sin tildes ni mayúsculas la posición de cada letra coincide con el texto original; si no, se muestra sin resaltar.
+    const aligned = foldedText.length === text.length;
+    const first = aligned ? Math.min(...terms.map((term) => foldedText.indexOf(term)).filter((at) => at !== -1)) : Infinity;
+    // El fragmento empieza y termina en un espacio para no cortar palabras.
+    let from = Number.isFinite(first) ? Math.max(0, first - 40) : 0;
+    if (from > 0) {
+      const space = text.indexOf(" ", from);
+      from = space !== -1 && space < first ? space + 1 : from;
+    }
+    let to = Math.min(text.length, from + 170);
+    if (to < text.length) {
+      const space = text.lastIndexOf(" ", to);
+      to = space > from + 60 ? space : to;
+    }
+    const piece = text.slice(from, to);
+    const foldedPiece = foldedText.slice(from, to);
+    const marks = [];
+    if (aligned) {
+      for (const term of terms) {
+        for (let at = foldedPiece.indexOf(term); at !== -1; at = foldedPiece.indexOf(term, at + term.length)) marks.push([at, at + term.length]);
+      }
+    }
+    marks.sort((a, b) => a[0] - b[0]);
+    let cursor = 0;
+    if (from > 0) fragment.append("…");
+    for (const [start, end] of marks) {
+      if (start < cursor) continue;
+      const mark = document.createElement("mark");
+      mark.textContent = piece.slice(start, end);
+      fragment.append(piece.slice(cursor, start), mark);
+      cursor = end;
+    }
+    fragment.append(piece.slice(cursor));
+    if (to < text.length) fragment.append("…");
+    return fragment;
+  }
+
+  function resultItem(section, terms) {
+    const item = document.createElement("li");
+    const link = document.createElement("a");
+    link.href = docUrl(section.path, section.id);
+    link.dataset.doc = section.path;
+    const where = document.createElement("span");
+    where.className = "where";
+    where.textContent = section.heading && section.heading !== section.doc ? `${section.doc} › ${section.heading}` : section.doc;
+    const text = document.createElement("span");
+    text.className = "snippet";
+    text.append(terms.length ? snippet(section, terms) : section.text);
+    link.append(where, text);
+    item.append(link);
+    return item;
+  }
+
+  function renderResults() {
+    const query = input.value;
+    const terms = fold(query).split(/\s+/).filter(Boolean);
+    if (!terms.length) {
+      status.textContent = `Escribe para buscar en los ${ORDER.length} documentos.`;
+      results.replaceChildren(...ORDER.map((path) => resultItem({ path, id: "", doc: TITLES.get(path), heading: "", text: GROUPS.get(path) }, [])));
       return;
     }
-    history.pushState(null, "", url);
-    load().then(() => document.getElementById("doc").focus({ preventScroll: true }));
+    if (!sections) {
+      status.textContent = "Cargando los documentos…";
+      results.replaceChildren();
+      return;
+    }
+    const found = rank(terms);
+    status.textContent = found.length ? `${found.length} ${found.length === 1 ? "resultado" : "resultados"}` : `Sin resultados para «${query.trim()}».`;
+    results.replaceChildren(...found.slice(0, 12).map((section) => resultItem(section, terms)));
+  }
+
+  function openSearch() {
+    if (!dialog.open) dialog.showModal();
+    input.focus();
+    input.select();
+    renderResults();
+    buildIndex().then(() => { if (dialog.open) renderResults(); });
+  }
+
+  let searchTimer = 0;
+  input.addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderResults, 90); });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") { event.preventDefault(); results.querySelector("a")?.focus(); }
+    if (event.key === "Enter") { event.preventDefault(); clearTimeout(searchTimer); renderResults(); results.querySelector("a")?.click(); }
+  });
+  results.addEventListener("keydown", (event) => {
+    const links = [...results.querySelectorAll("a")];
+    const at = links.indexOf(document.activeElement);
+    if (event.key === "ArrowDown") { event.preventDefault(); links[Math.min(at + 1, links.length - 1)]?.focus(); }
+    if (event.key === "ArrowUp") { event.preventDefault(); (at <= 0 ? input : links[at - 1]).focus(); }
+  });
+  results.addEventListener("click", (event) => { if (event.target.closest("a")) dialog.close(); });
+  dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+  $("search-close").addEventListener("click", () => dialog.close());
+  $("search-open").addEventListener("click", openSearch);
+  const mac = /Mac|iPhone|iPad/.test(navigator.userAgentData?.platform || navigator.platform || "");
+  $("search-kbd").textContent = mac ? "⌘ K" : "Ctrl K";
+  $("search-open").setAttribute("aria-keyshortcuts", mac ? "Meta+K /" : "Control+K /");
+  document.addEventListener("keydown", (event) => {
+    if (event.key.toLowerCase() === "k" && (event.ctrlKey || event.metaKey) && !event.altKey) {
+      event.preventDefault();
+      openSearch();
+    } else if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.closest?.("input, textarea, select, [contenteditable]")) {
+      event.preventDefault();
+      openSearch();
+    }
+  });
+
+  // ---------- Navegación ----------
+  // Los documentos del repositorio se abren aquí mismo, sin recargar la página.
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest?.("a[href]");
+    if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (link.getAttribute("href").startsWith("#")) {
+      remember();
+      if (link.classList.contains("anchor")) {
+        navigator.clipboard?.writeText(new URL(link.getAttribute("href"), location.href).href).then(() => toast("Enlace a la sección copiado"), () => {});
+      }
+      if (link.closest("#toc-inline")) tocInline.open = false;
+      return;
+    }
+    if (!link.dataset.doc) return;
+    event.preventDefault();
+    remember();
+    history.pushState(null, "", link.href);
+    if (currentPath() === shownPath) { scrollToHash(); return; }
+    load({ announceTitle: true }).then(() => $("doc").focus({ preventScroll: true }));
   });
   window.addEventListener("popstate", () => {
-    const params = new URLSearchParams(location.search).get("doc") || "README.md";
-    if (params === (document.querySelector('.docs a[aria-current="page"]')?.dataset.doc || "")) scrollToHash();
-    else load();
+    if (currentPath() === shownPath) restoreScroll();
+    else load({ announceTitle: true, restore: true });
   });
-  document.addEventListener("DOMContentLoaded", load);
+  window.addEventListener("pagehide", remember);
+  const prefetch = (event) => {
+    const link = event.target.closest?.("a[data-doc]");
+    if (link) fetchDoc(link.dataset.doc).catch(() => {});
+  };
+  document.addEventListener("pointerover", prefetch, { passive: true });
+  document.addEventListener("focusin", prefetch);
+  let resizeFrame = 0;
+  window.addEventListener("resize", () => { cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(fitDiagrams); });
+  document.addEventListener("DOMContentLoaded", () => load({ restore: true }));
 })();
 </script>
 </body>
